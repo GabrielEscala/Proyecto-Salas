@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef2ff 0%, #f4f6fb 50%, #ffffff 100%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease;
+  line-height: 1.5;
+  /* Optimizaciones de rendimiento */
+  will-change: auto;
+  transform: translateZ(0);
+}
+
+* {
+  line-height: inherit;
+}
+
+/* Mejoras de accesibilidad */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #0E7CFF;
+  outline-offset: 2px;
+}
+
+/* Mejoras de rendimiento */
+img {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+.dark body {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+}
+
+main {
+  min-height: calc(100vh - 80px);
+}
+
+/* Mejoras para móviles */
+@media (max-width: 900px) {
+  /* Prevenir zoom en inputs iOS */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Mejorar área táctil */
+  button,
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Scroll suave */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Touch manipulation para mejor rendimiento */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Mejoras de animación global */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Mejoras de sombras */
+.shadow-brand {
+  box-shadow: 0 4px 14px 0 rgba(14, 124, 255, 0.15);
+}
+
+.shadow-brand-lg {
+  box-shadow: 0 10px 25px 0 rgba(14, 124, 255, 0.2);
+}
+
+/* Mejoras de gradientes */
+.gradient-brand {
+  background: linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%);
+}
+
+.gradient-brand-hover {
+  background: linear-gradient(135deg, #0A56B3 0%, #083d85 100%);
+}
+
