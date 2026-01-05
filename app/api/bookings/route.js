@@ -1,13 +1,12 @@
-import { format } from "date-fns";
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
-import { DATE_FORMAT } from "@/lib/constants";
 import {
   generateTimeSlots,
   getNextAvailableSlot,
   isDateBeforeToday,
   isSlotInPast,
-  getSlotEndTime
+  getSlotEndTime,
+  getTodayString
 } from "@/lib/time";
 import { generateCancelCode } from "@/lib/codes";
 import { buildBookingEmailHtml, sendBookingEmail } from "@/lib/mailer";
@@ -71,7 +70,7 @@ const createMemoryBookingResponse = async ({ roomId, firstName, lastName, email,
     );
   }
 
-  const todayString = format(new Date(), DATE_FORMAT);
+  const todayString = getTodayString();
   if (date === todayString) {
     const pastSlot = uniqueTimes.find((slot) => isSlotInPast(date, slot));
     if (pastSlot) {
@@ -348,7 +347,7 @@ export async function POST(request) {
     );
   }
 
-  const todayString = format(new Date(), DATE_FORMAT);
+  const todayString = getTodayString();
   if (date === todayString) {
     const pastSlot = uniqueTimes.find((slot) => isSlotInPast(date, slot));
     if (pastSlot) {

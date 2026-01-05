@@ -1,12 +1,11 @@
-import { format } from "date-fns";
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
-import { DATE_FORMAT } from "@/lib/constants";
 import {
   generateTimeSlots,
   getNextAvailableSlot,
   isDateBeforeToday,
-  isSlotInPast
+  isSlotInPast,
+  getTodayString
 } from "@/lib/time";
 import { isValidCancelCode } from "@/lib/codes";
 
@@ -51,7 +50,7 @@ const editMemoryBooking = ({ cancelCode, newRoomId, newDate, newTimes }) => {
     );
   }
 
-  const todayString = format(new Date(), DATE_FORMAT);
+  const todayString = getTodayString();
   const uniqueNewTimes = [...new Set(newTimes.map(normalizeTime))].filter(Boolean);
 
   if (newDate === todayString) {
@@ -192,7 +191,7 @@ export async function POST(request) {
     );
   }
 
-  const todayString = format(new Date(), DATE_FORMAT);
+  const todayString = getTodayString();
   const uniqueNewTimes = [...new Set(newTimes)];
   
   if (newDate === todayString) {

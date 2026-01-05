@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
 import { isValidCancelCode } from "@/lib/codes";
-import { isDateBeforeToday, isSlotInPast } from "@/lib/time";
-import { format } from "date-fns";
-import { DATE_FORMAT } from "@/lib/constants";
+import { getTodayString, isDateBeforeToday, isSlotInPast } from "@/lib/time";
 
 const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
 
@@ -42,7 +40,7 @@ const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) =>
     );
   }
 
-  const todayString = format(new Date(), DATE_FORMAT);
+  const todayString = getTodayString();
   if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime)) {
     return NextResponse.json(
       { error: "No puedes cancelar una reserva que ya pasó." },
@@ -131,7 +129,7 @@ export async function POST(request) {
     );
   }
 
-  const todayString = format(new Date(), DATE_FORMAT);
+  const todayString = getTodayString();
   if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime)) {
     return NextResponse.json(
       { error: "No puedes cancelar una reserva que ya pasó." },
