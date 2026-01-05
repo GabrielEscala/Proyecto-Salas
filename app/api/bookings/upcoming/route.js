@@ -20,37 +20,37 @@ export async function GET(request) {
     return NextResponse.json([]);
   }
 
-  let query = supabase
-    .from("bookings")
-    .select("id, room_id, date, time, first_name, last_name, rooms(name)")
-    .eq("date", date)
-    .gte("time", ensureSeconds(currentTime))
-    .order("time", { ascending: true });
+  try {
+    let query = supabase
+      .from("bookings")
+      .select("id, room_id, date, time, first_name, last_name, rooms(name)")
+      .eq("date", date)
+      .gte("time", ensureSeconds(currentTime))
+      .order("time", { ascending: true });
 
-  if (roomId) {
-    query = query.eq("room_id", roomId);
-  }
+    if (roomId) {
+      query = query.eq("room_id", roomId);
+    }
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) {
-    console.error(error);
+    if (error) {
+      return NextResponse.json([]);
+    }
+
     return NextResponse.json(
-      { error: "No pudimos obtener las próximas reservas." },
-      { status: 500 }
+      (data || []).map((row) => ({
+        id: row.id,
+        room_id: row.room_id,
+        date: row.date,
+        time: row.time?.slice(0, 5),
+        first_name: row.first_name,
+        last_name: row.last_name,
+        room_name: row.rooms?.name ?? row.room_name
+      }))
     );
+  } catch (error) {
+    return NextResponse.json([]);
   }
-
-  return NextResponse.json(
-    data.map((row) => ({
-      id: row.id,
-      room_id: row.room_id,
-      date: row.date,
-      time: row.time?.slice(0, 5),
-      first_name: row.first_name,
-      last_name: row.last_name,
-      room_name: row.rooms?.name ?? row.room_name
-    }))
-  );
 }
 

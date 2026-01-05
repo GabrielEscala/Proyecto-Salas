@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import {
   FormControl,
   InputLabel,
@@ -14,6 +15,17 @@ import { useTheme } from "@/lib/theme-context";
 export default function RoomSelector({ rooms = [], value, onChange, showInfo = true }) {
   const selectedRoom = rooms.find((room) => (room.id ?? room.name) === value);
   const { mode } = useTheme();
+
+  const roomSelectScrollYRef = useRef(0);
+
+  const restoreScrollPosition = () => {
+    if (typeof window === "undefined") return;
+    const top = roomSelectScrollYRef.current;
+    if (typeof top !== "number") return;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top, left: 0, behavior: "auto" });
+    });
+  };
 
   return (
     <Box className="space-y-3">
@@ -49,6 +61,31 @@ export default function RoomSelector({ rooms = [], value, onChange, showInfo = t
           label="Selecciona una sala"
           value={value || ""}
           onChange={(event) => onChange?.(event.target.value)}
+          onOpen={() => {
+            if (typeof window !== "undefined") {
+              roomSelectScrollYRef.current = window.scrollY;
+            }
+            restoreScrollPosition();
+          }}
+          onClose={restoreScrollPosition}
+          MenuProps={{
+            disableScrollLock: true,
+            PaperProps: {
+              sx: {
+                maxHeight: 360,
+                overflowY: "auto",
+                borderRadius: "16px",
+                mt: 1,
+                boxShadow: mode === "dark" ? "0 10px 30px rgba(0,0,0,0.45)" : "0 10px 30px rgba(0,0,0,0.18)",
+                backgroundColor: mode === "dark" ? "rgba(15, 23, 42, 0.98)" : "#ffffff"
+              }
+            },
+            MenuListProps: {
+              sx: {
+                py: 0
+              }
+            }
+          }}
           sx={{
             backgroundColor: mode === "dark" ? "rgba(30, 41, 59, 0.6)" : "white",
             borderRadius: "16px",

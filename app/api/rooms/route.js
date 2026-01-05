@@ -7,16 +7,19 @@ export async function GET() {
     return NextResponse.json(ROOM_SEED, { status: 200 });
   }
 
-  const { data, error } = await supabase.from("rooms").select("*").order("name");
+  try {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("*")
+      .order("name");
 
-  if (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: "No pudimos obtener las salas en este momento." },
-      { status: 500 }
-    );
+    if (error) {
+      return NextResponse.json(ROOM_SEED, { status: 200 });
+    }
+
+    return NextResponse.json((data || []).length ? data : ROOM_SEED);
+  } catch (error) {
+    return NextResponse.json(ROOM_SEED, { status: 200 });
   }
-
-  return NextResponse.json(data.length ? data : ROOM_SEED);
 }
 

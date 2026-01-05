@@ -5,14 +5,72 @@ import { isDateBeforeToday, isSlotInPast } from "@/lib/time";
 import { format } from "date-fns";
 import { DATE_FORMAT } from "@/lib/constants";
 
-export async function POST(request) {
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Supabase no está configurado." },
-      { status: 500 }
+const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
+
+const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SALAS_MEMORY_BOOKINGS__ = []);
+
+const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) => {
+  let bookings = [];
+  if (cancelCode) {
+    bookings = MEMORY_BOOKINGS.filter((b) => b.cancel_code === cancelCode);
+  } else {
+    const timeKey = time?.includes(":") && time.length === 5 ? `${time}:00` : time;
+    bookings = MEMORY_BOOKINGS.filter(
+      (b) =>
+        b.first_name === firstName?.trim?.() &&
+        b.last_name === lastName?.trim?.() &&
+        b.date === date &&
+        b.time === timeKey
     );
   }
 
+  if (!bookings.length) {
+    return NextResponse.json(
+      { error: "No se encontró ninguna reserva con esos datos." },
+      { status: 404 }
+    );
+  }
+
+  const firstBooking = bookings[0];
+  const bookingDate = firstBooking.date;
+  const bookingTime = normalizeTime(firstBooking.time);
+
+  if (isDateBeforeToday(bookingDate)) {
+    return NextResponse.json(
+      { error: "No puedes cancelar reservas pasadas." },
+      { status: 422 }
+    );
+  }
+
+  const todayString = format(new Date(), DATE_FORMAT);
+  if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime)) {
+    return NextResponse.json(
+      { error: "No puedes cancelar una reserva que ya pasó." },
+      { status: 422 }
+    );
+  }
+
+  const cancelCodeToDelete = firstBooking.cancel_code;
+  const before = MEMORY_BOOKINGS.length;
+  for (let i = MEMORY_BOOKINGS.length - 1; i >= 0; i--) {
+    if (MEMORY_BOOKINGS[i].cancel_code === cancelCodeToDelete) {
+      MEMORY_BOOKINGS.splice(i, 1);
+    }
+  }
+  const deleted = before - MEMORY_BOOKINGS.length;
+
+  return NextResponse.json(
+    {
+      success: true,
+      message: "Reserva cancelada exitosamente.",
+      cancelled_bookings: deleted,
+      storage: "memory"
+    },
+    { status: 200 }
+  );
+};
+
+export async function POST(request) {
   const body = await request.json();
   const { cancelCode, firstName, lastName, date, time } = body;
 
@@ -24,7 +82,11 @@ export async function POST(request) {
     );
   }
 
-  let query = supabase.from("bookings");
+  if (!supabase) {
+    return cancelMemoryBooking({ cancelCode, firstName, lastName, date, time });
+  }
+
+  let query = supabase.from("bookings").select("*");
 
   if (cancelCode) {
     if (!isValidCancelCode(cancelCode)) {
@@ -43,7 +105,7 @@ export async function POST(request) {
       .eq("time", time.includes(":") && time.length === 5 ? `${time}:00` : time);
   }
 
-  const { data: bookings, error } = await query.select("*");
+  const { data: bookings, error } = await query;
 
   if (error) {
     console.error(error);
@@ -54,10 +116,7 @@ export async function POST(request) {
   }
 
   if (!bookings || bookings.length === 0) {
-    return NextResponse.json(
-      { error: "No se encontró ninguna reserva con esos datos." },
-      { status: 404 }
-    );
+    return cancelMemoryBooking({ cancelCode, firstName, lastName, date, time });
   }
 
   // Verificar que la reserva no haya pasado
@@ -106,7 +165,8 @@ export async function POST(request) {
     {
       success: true,
       message: "Reserva cancelada exitosamente.",
-      cancelled_bookings: bookings.length
+      cancelled_bookings: bookings.length,
+      storage: "supabase"
     },
     { status: 200 }
   );

@@ -10,8 +10,178 @@ import {
   getSlotEndTime
 } from "@/lib/time";
 import { generateCancelCode } from "@/lib/codes";
+import { buildBookingEmailHtml, sendBookingEmail } from "@/lib/mailer";
+
+export const runtime = "nodejs";
 
 const slots = generateTimeSlots();
+
+const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SALAS_MEMORY_BOOKINGS__ = []);
+
+const createId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
+
+const getBaseUrl = () => {
+  let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!baseUrl) {
+    if (process.env.VERCEL_URL) {
+      baseUrl = `https://${process.env.VERCEL_URL}`;
+    } else {
+      baseUrl = "http://localhost:3000";
+    }
+  }
+  return baseUrl;
+};
+
+const buildCancelUrl = (cancelCode) => `${getBaseUrl()}/manage/${cancelCode}`;
+
+const getMemoryBookings = ({ date, roomId, cancelCode }) => {
+  const filtered = MEMORY_BOOKINGS.filter((b) => {
+    if (cancelCode) return b.cancel_code === cancelCode;
+    if (date && b.date !== date) return false;
+    if (roomId && b.room_id !== roomId) return false;
+    return true;
+  });
+
+  return filtered.map((row) => formatBookingRow({ ...row, _storage: "memory" }));
+};
+
+const createMemoryBookingResponse = async ({ roomId, firstName, lastName, email, company, date, time, times, storageReason, storageError }) => {
+  const requestedTimes = Array.isArray(times)
+    ? times
+    : time
+      ? [time]
+      : [];
+
+  if (!roomId || !firstName || !lastName || !email || !company || !date || !requestedTimes.length) {
+    return NextResponse.json(
+      { error: "Todos los campos son obligatorios." },
+      { status: 400 }
+    );
+  }
+
+  const uniqueTimes = [...new Set(requestedTimes.map(normalizeTime))].filter(Boolean);
+
+  if (isDateBeforeToday(date)) {
+    return NextResponse.json(
+      { error: "No puedes reservar en fechas pasadas." },
+      { status: 422 }
+    );
+  }
+
+  const todayString = format(new Date(), DATE_FORMAT);
+  if (date === todayString) {
+    const pastSlot = uniqueTimes.find((slot) => isSlotInPast(date, slot));
+    if (pastSlot) {
+      return NextResponse.json(
+        { error: `El horario ${pastSlot} ya pasó.` },
+        { status: 422 }
+      );
+    }
+  }
+
+  const invalidSlot = uniqueTimes.find((slot) => !slots.includes(slot));
+  if (invalidSlot) {
+    return NextResponse.json(
+      { error: `El horario ${invalidSlot} es inválido.` },
+      { status: 422 }
+    );
+  }
+
+  const dayBookings = MEMORY_BOOKINGS.filter((b) => b.date === date && b.room_id === roomId);
+  const conflicts = uniqueTimes
+    .map((slot) => dayBookings.find((b) => normalizeTime(b.time) === slot))
+    .filter(Boolean);
+
+  if (conflicts.length) {
+    const suggestion = getNextAvailableSlot(
+      slots,
+      dayBookings.map((b) => ({ ...b, time: normalizeTime(b.time) })),
+      date,
+      normalizeTime(conflicts[0].time)
+    );
+
+    return NextResponse.json(
+      {
+        error: "La sala ya está reservada en ese horario.",
+        conflicts: conflicts.map((booking) => ({
+          first_name: booking.first_name,
+          last_name: booking.last_name,
+          time: normalizeTime(booking.time)
+        })),
+        suggestion
+      },
+      { status: 409 }
+    );
+  }
+
+  const cancelCode = generateCancelCode();
+  const insertPayload = uniqueTimes.map((slot) => ({
+    id: createId(),
+    room_id: roomId,
+    first_name: firstName.trim(),
+    last_name: lastName.trim(),
+    email: email.trim().toLowerCase(),
+    notes: company?.trim?.() || company || null,
+    company: company?.trim?.() || company || null,
+    date,
+    time: `${slot}:00`,
+    cancel_code: cancelCode
+  }));
+
+  MEMORY_BOOKINGS.push(...insertPayload);
+
+  const formatted = insertPayload.map(formatBookingRow);
+  const lastTime = formatted[formatted.length - 1].time;
+  const timeRange = formatted.length > 1
+    ? `${formatted[0].time} - ${getSlotEndTime(lastTime)}`
+    : formatted[0].time;
+
+  const cancelUrl = buildCancelUrl(cancelCode);
+
+  let emailStatus = { ok: false, status: "skipped", reason: "not_attempted" };
+
+  try {
+    const html = buildBookingEmailHtml({
+      firstName,
+      lastName,
+      company,
+      roomName: formatted?.[0]?.room_name || "",
+      date,
+      timeRange,
+      cancelCode,
+      cancelUrl
+    });
+    emailStatus = await sendBookingEmail({
+      to: email,
+      subject: `Reserva confirmada - ${formatted?.[0]?.room_name || "Sala"}`,
+      html
+    });
+  } catch (_) {
+    emailStatus = { ok: false, status: "error", error: "unexpected" };
+  }
+
+  return NextResponse.json(
+    {
+      ...formatted[0],
+      storage: "memory",
+      storage_reason: storageReason || null,
+      supabase_error: storageError || null,
+      cancel_code: cancelCode,
+      cancel_url: cancelUrl,
+      time_range: timeRange,
+      email_provider: emailStatus?.provider || null,
+      email_status: emailStatus?.status,
+      email_error: emailStatus?.status === "error" ? emailStatus?.error || null : null,
+      email_skip_reason: emailStatus?.status === "skipped" ? emailStatus?.reason || null : null,
+      email_message_id: emailStatus?.status === "sent" ? emailStatus?.messageId || null : null,
+      all_bookings: formatted
+    },
+    { status: 201 }
+  );
+};
 
 const formatBookingRow = (row) => ({
   id: row.id,
@@ -20,8 +190,11 @@ const formatBookingRow = (row) => ({
   time: row.time?.slice(0, 5) ?? row.time,
   first_name: row.first_name,
   last_name: row.last_name,
+  email: row.email ?? null,
+  company: row.company ?? row.notes ?? null,
   cancel_code: row.cancel_code,
-  room_name: row.rooms?.name ?? row.room_name
+  room_name: row.rooms?.name ?? row.room_name,
+  storage: row.storage ?? row._storage ?? (row.rooms ? "supabase" : "memory")
 });
 
 const timeWithSeconds = (time) => (time?.length === 5 ? `${time}:00` : time);
@@ -33,84 +206,133 @@ export async function GET(request) {
   const cancelCode = searchParams.get("cancelCode");
 
   if (!supabase) {
-    return NextResponse.json([]);
+    return NextResponse.json(getMemoryBookings({ date, roomId, cancelCode }), {
+      headers: {
+        "x-salas-storage": "memory",
+        "x-salas-storage-reason": "supabase_not_configured"
+      }
+    });
   }
 
-  // Si se busca por código de cancelación
-  if (cancelCode) {
-    const { data, error } = await supabase
+  try {
+    // Si se busca por código de cancelación
+    if (cancelCode) {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, room_id, date, time, first_name, last_name, email, notes, cancel_code, rooms(name)")
+        .eq("cancel_code", cancelCode)
+        .order("time", { ascending: true });
+
+      if (error) {
+        return NextResponse.json(getMemoryBookings({ date, roomId, cancelCode }), {
+          headers: {
+            "x-salas-storage": "memory",
+            "x-salas-storage-reason": "supabase_error",
+            "x-salas-supabase-error": (error?.message || "").slice(0, 200)
+          }
+        });
+      }
+
+      const merged = [
+        ...((data || []).map(formatBookingRow)),
+        ...getMemoryBookings({ date, roomId, cancelCode })
+      ];
+
+      const byKey = new Map();
+      for (const b of merged) {
+        const key = `${b.room_id}|${b.date}|${b.time}|${b.cancel_code || ""}`;
+        if (!byKey.has(key)) byKey.set(key, b);
+      }
+
+      const result = Array.from(byKey.values()).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+      if (result.length === 0) {
+        return NextResponse.json(
+          { error: "Código no encontrado." },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(result, {
+        headers: {
+          "x-salas-storage": "supabase"
+        }
+      });
+    }
+
+    // Búsqueda normal por fecha
+    if (!date) {
+      return NextResponse.json(
+        { error: "El parámetro date es obligatorio (o usa cancelCode)." },
+        { status: 400 }
+      );
+    }
+
+    let query = supabase
       .from("bookings")
-      .select("id, room_id, date, time, first_name, last_name, cancel_code, rooms(name)")
-      .eq("cancel_code", cancelCode)
+      .select("id, room_id, date, time, first_name, last_name, email, notes, cancel_code, rooms(name)")
+      .eq("date", date)
       .order("time", { ascending: true });
 
+    if (roomId) {
+      query = query.eq("room_id", roomId);
+    }
+
+    const { data, error } = await query;
+
     if (error) {
-      console.error(error);
-      return NextResponse.json(
-        { error: "No pudimos obtener la reserva." },
-        { status: 500 }
-      );
+      return NextResponse.json(getMemoryBookings({ date, roomId, cancelCode }), {
+        headers: {
+          "x-salas-storage": "memory",
+          "x-salas-storage-reason": "supabase_error",
+          "x-salas-supabase-error": (error?.message || "").slice(0, 200)
+        }
+      });
     }
 
-    if (!data || data.length === 0) {
-      return NextResponse.json(
-        { error: "Código no encontrado." },
-        { status: 404 }
-      );
+    const merged = [
+      ...((data || []).map(formatBookingRow)),
+      ...getMemoryBookings({ date, roomId, cancelCode })
+    ];
+
+    const byKey = new Map();
+    for (const b of merged) {
+      const key = `${b.room_id}|${b.date}|${b.time}`;
+      if (!byKey.has(key)) byKey.set(key, b);
     }
 
-    return NextResponse.json(data.map(formatBookingRow));
+    const result = Array.from(byKey.values()).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+    return NextResponse.json(result, {
+      headers: {
+        "x-salas-storage": "supabase"
+      }
+    });
+  } catch (error) {
+    return NextResponse.json(getMemoryBookings({ date, roomId, cancelCode }), {
+      headers: {
+        "x-salas-storage": "memory",
+        "x-salas-storage-reason": "supabase_error",
+        "x-salas-supabase-error": (error?.message || "").slice(0, 200)
+      }
+    });
   }
-
-  // Búsqueda normal por fecha
-  if (!date) {
-    return NextResponse.json(
-      { error: "El parámetro date es obligatorio (o usa cancelCode)." },
-      { status: 400 }
-    );
-  }
-
-  let query = supabase
-    .from("bookings")
-    .select("id, room_id, date, time, first_name, last_name, cancel_code, rooms(name)")
-    .eq("date", date)
-    .order("time", { ascending: true });
-
-  if (roomId) {
-    query = query.eq("room_id", roomId);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: "No pudimos obtener las reservas." },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json(data.map(formatBookingRow));
 }
 
 export async function POST(request) {
   try {
     if (!supabase) {
-      return NextResponse.json(
-        { error: "Supabase no está configurado." },
-        { status: 500 }
-      );
+      const body = await request.json();
+      return await createMemoryBookingResponse({ ...body, storageReason: "supabase_not_configured" });
     }
 
   const body = await request.json();
-  const { roomId, firstName, lastName, date, time, times } = body;
+  const { roomId, firstName, lastName, email, company, date, time, times } = body;
   const requestedTimes = Array.isArray(times)
     ? times
     : time
       ? [time]
       : [];
 
-  if (!roomId || !firstName || !lastName || !date || !requestedTimes.length) {
+  if (!roomId || !firstName || !lastName || !email || !company || !date || !requestedTimes.length) {
     return NextResponse.json(
       { error: "Todos los campos son obligatorios." },
       { status: 400 }
@@ -152,11 +374,7 @@ export async function POST(request) {
     .eq("room_id", roomId);
 
   if (dayError) {
-    console.error(dayError);
-    return NextResponse.json(
-      { error: "No pudimos validar la disponibilidad." },
-      { status: 500 }
-    );
+    return await createMemoryBookingResponse({ roomId, firstName, lastName, email, company, date, time, times, storageReason: "supabase_error", storageError: dayError?.message });
   }
 
   // Verificar conflictos: debe ser la misma sala Y el mismo horario
@@ -201,6 +419,8 @@ export async function POST(request) {
         room_id: roomId,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        notes: company.trim(),
         date,
         time: timeFormatted,
         cancel_code: cancelCode
@@ -218,34 +438,16 @@ export async function POST(request) {
           const { data, error } = await supabase
     .from("bookings")
     .insert(insertPayload)
-    .select("id, room_id, date, time, first_name, last_name, cancel_code, rooms(name)");
+    .select("id, room_id, date, time, first_name, last_name, email, notes, cancel_code, rooms(name)");
 
   if (error) {
-    let errorMessage = "No pudimos crear la reserva.";
-    if (error.code === "23505") {
-      errorMessage = "Uno o más horarios ya están reservados.";
-    } else if (error.code === "23503") {
-      errorMessage = "La sala seleccionada no existe.";
-    } else if (error.message) {
-      errorMessage = `Error: ${error.message}`;
-    }
-    
-    return NextResponse.json(
-      { 
-        error: errorMessage,
-        details: process.env.NODE_ENV === "development" ? (error.details || error.message) : undefined
-      },
-      { status: 500 }
-    );
+    return await createMemoryBookingResponse({ roomId, firstName, lastName, email, company, date, time, times, storageReason: "supabase_error", storageError: error?.message });
   }
 
           const formatted = (Array.isArray(data) ? data : [data]).map(formatBookingRow);
           
           if (!formatted || formatted.length === 0) {
-            return NextResponse.json(
-              { error: "No se pudo crear la reserva." },
-              { status: 500 }
-            );
+            return await createMemoryBookingResponse({ roomId, firstName, lastName, email, company, date, time, times, storageReason: "supabase_error", storageError: "Empty insert result" });
           }
   
   const firstBooking = formatted[0];
@@ -254,32 +456,56 @@ export async function POST(request) {
     ? `${formatted[0].time} - ${getSlotEndTime(lastTime)}`
     : formatted[0].time;
 
-  // Obtener URL base para el link de cancelación
-  let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!baseUrl) {
-    if (process.env.VERCEL_URL) {
-      baseUrl = `https://${process.env.VERCEL_URL}`;
-    } else {
-      baseUrl = "http://localhost:3000";
-    }
+  const cancelUrl = buildCancelUrl(cancelCode);
+
+  let emailStatus = { ok: false, status: "skipped", reason: "not_attempted" };
+
+  try {
+    const html = buildBookingEmailHtml({
+      firstName,
+      lastName,
+      company,
+      roomName: firstBooking.room_name || "",
+      date,
+      timeRange,
+      cancelCode,
+      cancelUrl
+    });
+    emailStatus = await sendBookingEmail({
+      to: email,
+      subject: `Reserva confirmada - ${firstBooking.room_name || "Sala"}`,
+      html
+    });
+  } catch (_) {
+    emailStatus = { ok: false, status: "error", error: "unexpected" };
   }
-  const cancelUrl = `${baseUrl}/manage/${cancelCode}`;
 
   return NextResponse.json(
     {
       ...formatted[0],
+      storage: "supabase",
       cancel_code: cancelCode,
       cancel_url: cancelUrl,
       time_range: timeRange,
+      email_provider: emailStatus?.provider || null,
+      email_status: emailStatus?.status,
+      email_error: emailStatus?.status === "error" ? emailStatus?.error || null : null,
+      email_skip_reason: emailStatus?.status === "skipped" ? emailStatus?.reason || null : null,
+      email_message_id: emailStatus?.status === "sent" ? emailStatus?.messageId || null : null,
       all_bookings: formatted
     },
     { status: 201 }
   );
   } catch (error) {
-    return NextResponse.json(
-      { error: error.message || "Ocurrió un error inesperado al crear la reserva." },
-      { status: 500 }
-    );
+    try {
+      const body = await request.json();
+      return await createMemoryBookingResponse({ ...body, storageReason: "supabase_error", storageError: error?.message });
+    } catch {
+      return NextResponse.json(
+        { error: "Ocurrió un error inesperado al crear la reserva." },
+        { status: 500 }
+      );
+    }
   }
 }
 

@@ -57,7 +57,7 @@ function TimeSlots({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide text-center sm:text-left w-full sm:w-auto">
-          Horarios disponibles 7:00 am - 8:00 pm
+          Horarios disponibles 7:00 a. m. - 8:00 p. m.
         </p>
         <div className="flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-300 justify-center sm:justify-end w-full sm:w-auto">
           <span className="flex items-center gap-1">

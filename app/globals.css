@@ -12,14 +12,13 @@
 
 body {
   min-height: 100vh;
-  background: linear-gradient(135deg, #eef2ff 0%, #f4f6fb 50%, #ffffff 100%);
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 55%, #ffffff 100%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease;
   line-height: 1.5;
   /* Optimizaciones de rendimiento */
   will-change: auto;
-  transform: translateZ(0);
 }
 
 * {
@@ -45,7 +44,7 @@ html {
 }
 
 .dark body {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  background: linear-gradient(135deg, #0b1220 0%, #0f172a 55%, #0b1220 100%);
 }
 
 main {

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -18,7 +18,6 @@ import {
 } from "@mui/material";
 import { useTheme } from "@/lib/theme-context";
 import { formatTime12h } from "@/lib/time";
-import clsx from "clsx";
 
 function BookingForm({
   selectedRoom,
@@ -34,6 +33,17 @@ function BookingForm({
   const [company, setCompany] = useState("");
   const [formError, setFormError] = useState("");
   const { mode } = useTheme();
+
+  const companySelectScrollYRef = useRef(0);
+
+  const restoreScrollPosition = () => {
+    if (typeof window === "undefined") return;
+    const top = companySelectScrollYRef.current;
+    if (typeof top !== "number") return;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top, left: 0, behavior: "auto" });
+    });
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -79,7 +89,7 @@ function BookingForm({
       }}
     >
       <CardContent className="p-5 md:p-6">
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form id="booking-form" onSubmit={handleSubmit} className="space-y-5">
           <div className="text-center md:text-left">
             <Typography 
               variant="h6" 
@@ -282,6 +292,16 @@ function BookingForm({
                   label="Empresa *"
                   value={company}
                   onChange={(event) => setCompany(event.target.value)}
+                  onOpen={() => {
+                    if (typeof window !== "undefined") {
+                      companySelectScrollYRef.current = window.scrollY;
+                    }
+                    restoreScrollPosition();
+                  }}
+                  onClose={restoreScrollPosition}
+                  MenuProps={{
+                    disableScrollLock: true
+                  }}
                   sx={{
                     backgroundColor: mode === "dark" ? "rgba(30, 41, 59, 0.4)" : "white",
                     borderRadius: "12px",
