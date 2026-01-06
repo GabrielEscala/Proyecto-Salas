@@ -26,7 +26,7 @@ export default function HistoryPage() {
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState("");
 
-  const [from, setFrom] = useState(() => format(subDays(new Date(), 7), "yyyy-MM-dd"));
+  const [from, setFrom] = useState(() => format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [to, setTo] = useState(() => format(new Date(), "yyyy-MM-dd"));
 
   const [loadingRooms, setLoadingRooms] = useState(true);

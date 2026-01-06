@@ -61,7 +61,7 @@ export async function GET(request) {
   try {
     let query = supabase
       .from("bookings")
-      .select("id, room_id, date, time, first_name, last_name, email, company, notes, cancel_code, rooms(name)")
+      .select("id, room_id, date, time, first_name, last_name, email, notes, cancel_code, rooms(name)")
       .gte("date", from)
       .lte("date", to)
       .order("date", { ascending: false })
