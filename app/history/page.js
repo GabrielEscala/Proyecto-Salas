@@ -19,6 +19,7 @@ import {
 import { toast, Toaster } from "sonner";
 import { useTheme } from "@/lib/theme-context";
 import { formatTime12h } from "@/lib/time";
+import { ENABLE_FITUR } from "@/lib/constants";
 
 export default function HistoryPage() {
   const { mode } = useTheme();
@@ -36,12 +37,11 @@ export default function HistoryPage() {
   const loadRooms = useCallback(async () => {
     setLoadingRooms(true);
     try {
-      const response = await fetch("/api/rooms");
+      const groupParam = ENABLE_FITUR ? "?group=all" : "";
+      const response = await fetch(`/api/rooms${groupParam}`);
       const data = await response.json();
       const list = Array.isArray(data) ? data : [];
       setRooms(list);
-      const firstId = (list[0] && (list[0].id ?? list[0].name)) || "";
-      setSelectedRoom((prev) => prev || firstId);
     } catch {
       setRooms([]);
     } finally {
@@ -186,6 +186,7 @@ export default function HistoryPage() {
                         }
                       }}
                     >
+                      <MenuItem value="">Todas</MenuItem>
                       {rooms.map((r) => (
                         <MenuItem key={r.id ?? r.name} value={r.id ?? r.name}>
                           {r.name}

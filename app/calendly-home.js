@@ -33,8 +33,9 @@ import {
 } from "@mui/material";
 import { toast, Toaster } from "sonner";
 import dynamic from "next/dynamic";
-import { generateTimeSlots, formatTime12h, isSlotInPast } from "@/lib/time";
+import { generateTimeSlots, formatTime12h, getTodayString, isSlotInPast } from "@/lib/time";
 import { useTheme } from "@/lib/theme-context";
+import { ENABLE_FITUR } from "@/lib/constants";
 
 const ManageBookingDialog = dynamic(() => import("@/components/manage-booking-dialog"), {
   ssr: false
@@ -82,7 +83,7 @@ function CompanyCarousel({ value, onChange, mode }) {
   );
 }
 
-function CalendlyCalendar({ value, onChange, mode }) {
+function CalendlyCalendar({ value, onChange, mode, todayString, timeZone }) {
   const [cursorMonth, setCursorMonth] = useState(() => parseISO(value));
 
   useEffect(() => {
@@ -102,14 +103,12 @@ function CalendlyCalendar({ value, onChange, mode }) {
     return result;
   }, [monthStart, monthEnd, startWeekday]);
 
-  const today = startOfDay(new Date());
-  const selected = parseISO(value);
-
   const dayButtonClass = (day) => {
-    const isSelected = day && isSameDay(day, selected);
+    const dayString = day ? format(day, "yyyy-MM-dd") : "";
+    const isSelected = !!dayString && dayString === value;
     const isOutside = day && !isSameMonth(day, cursorMonth);
-    const isPast = day && isBefore(startOfDay(day), today);
-    const isToday = day && isSameDay(day, today);
+    const isPast = !!dayString && !!todayString && dayString < todayString;
+    const isToday = !!dayString && !!todayString && dayString === todayString;
 
     if (!day) return "";
 
@@ -131,7 +130,9 @@ function CalendlyCalendar({ value, onChange, mode }) {
   const canSelect = (day) => {
     if (!day) return false;
     if (!isSameMonth(day, cursorMonth)) return false;
-    return !isBefore(startOfDay(day), today);
+    const dayString = format(day, "yyyy-MM-dd");
+    if (!todayString) return true;
+    return dayString >= todayString;
   };
 
   return (
@@ -221,7 +222,7 @@ function CalendlyCalendar({ value, onChange, mode }) {
           }
         >
           <span className="font-semibold">Zona horaria</span>
-          <span className="font-bold">(GMT-4) América/Caracas</span>
+          <span className="font-bold">{timeZone === "Europe/Madrid" ? "España (Europe/Madrid)" : "Venezuela (America/Caracas)"}</span>
         </div>
       </div>
     </div>
@@ -401,10 +402,13 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
 export default function CalendlyHome() {
   const { mode } = useTheme();
 
-  const today = format(new Date(), "yyyy-MM-dd");
+  const [group, setGroup] = useState("salas");
+  const timeZone = group === "fitur" ? "Europe/Madrid" : "America/Caracas";
+  const todayString = useMemo(() => getTodayString(new Date(), timeZone), [timeZone]);
+
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState("");
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(todayString);
   const [dayBookings, setDayBookings] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
 
@@ -423,12 +427,13 @@ export default function CalendlyHome() {
     rooms.find((r) => (r.id ?? r.name) === selectedRoom)?.name || "";
 
   const fetchRooms = useCallback(async () => {
-    const res = await fetch("/api/rooms");
+    const groupParam = ENABLE_FITUR ? `?group=${encodeURIComponent(group)}` : "";
+    const res = await fetch(`/api/rooms${groupParam}`);
     const data = await res.json();
     setRooms(Array.isArray(data) ? data : []);
     const firstId = (Array.isArray(data) && data[0] && (data[0].id ?? data[0].name)) || "";
     setSelectedRoom((prev) => prev || firstId);
-  }, []);
+  }, [group]);
 
   const fetchBookings = useCallback(async () => {
     if (!selectedDate || !selectedRoom) {
@@ -456,6 +461,12 @@ export default function CalendlyHome() {
   useEffect(() => {
     setSelectedTimes([]);
     setConfirmed(false);
+    setSelectedDate(todayString);
+  }, [todayString]);
+
+  useEffect(() => {
+    setSelectedTimes([]);
+    setConfirmed(false);
     fetchBookings();
   }, [selectedDate, selectedRoom, fetchBookings]);
 
@@ -467,10 +478,10 @@ export default function CalendlyHome() {
     return slots.map((t) => {
       if (!selectedRoom) return { time: t, status: "invalid" };
       if (bookingsByTime.has(t)) return { time: t, status: "reserved", booking: bookingsByTime.get(t) };
-      if (isSlotInPast(selectedDate, t)) return { time: t, status: "invalid" };
+      if (isSlotInPast(selectedDate, t, new Date(), timeZone)) return { time: t, status: "invalid" };
       return { time: t, status: "available" };
     });
-  }, [dayBookings, selectedDate, selectedRoom]);
+  }, [dayBookings, selectedDate, selectedRoom, timeZone]);
 
   const reservationsForDay = useMemo(() => {
     const list = Array.isArray(dayBookings) ? dayBookings : [];
@@ -579,12 +590,52 @@ export default function CalendlyHome() {
               <div className="space-y-4">
                 <CompanyCarousel value={company} onChange={setCompany} mode={mode} />
 
+                {ENABLE_FITUR ? (
+                  <div className={"rounded-2xl border p-2 flex gap-2 " + (mode === "dark" ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white")}
+                  >
+                    <Button
+                      variant={group === "salas" ? "contained" : "outlined"}
+                      onClick={() => {
+                        setGroup("salas");
+                        setSelectedRoom("");
+                      }}
+                      sx={{
+                        flex: 1,
+                        height: 42,
+                        fontWeight: 900,
+                        textTransform: "none",
+                        borderRadius: "14px",
+                        background: group === "salas" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                      }}
+                    >
+                      Salas
+                    </Button>
+                    <Button
+                      variant={group === "fitur" ? "contained" : "outlined"}
+                      onClick={() => {
+                        setGroup("fitur");
+                        setSelectedRoom("");
+                      }}
+                      sx={{
+                        flex: 1,
+                        height: 42,
+                        fontWeight: 900,
+                        textTransform: "none",
+                        borderRadius: "14px",
+                        background: group === "fitur" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                      }}
+                    >
+                      Fitur
+                    </Button>
+                  </div>
+                ) : null}
+
                 <FormControl fullWidth>
-                  <InputLabel id="room-label">Sala</InputLabel>
+                  <InputLabel id="room-label">{group === "fitur" ? "Espacio" : "Sala"}</InputLabel>
                   <Select
                     labelId="room-select"
                     value={selectedRoom}
-                    label="Sala"
+                    label={group === "fitur" ? "Espacio" : "Sala"}
                     onChange={(e) => setSelectedRoom(e.target.value)}
                     displayEmpty
                     renderValue={(val) => {
@@ -625,7 +676,7 @@ export default function CalendlyHome() {
                     }}
                   >
                     <MenuItem value="" disabled>
-                      Selecciona una sala
+                      {group === "fitur" ? "Selecciona un espacio" : "Selecciona una sala"}
                     </MenuItem>
                     {rooms.map((r) => (
                       <MenuItem key={r.id ?? r.name} value={r.id ?? r.name}>
@@ -762,7 +813,7 @@ export default function CalendlyHome() {
             {/* Calendar panel */}
             <div className={"p-6 md:p-7 border-b md:border-b-0 md:border-r " + (mode === "dark" ? "border-slate-800" : "border-slate-200/70")}>
               <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mb-2">Selecciona una fecha</p>
-              <CalendlyCalendar value={selectedDate} onChange={setSelectedDate} mode={mode} />
+              <CalendlyCalendar value={selectedDate} onChange={setSelectedDate} mode={mode} todayString={todayString} timeZone={timeZone} />
             </div>
 
             {/* Time panel */}

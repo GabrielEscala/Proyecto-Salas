@@ -35,15 +35,29 @@ import {
   Skeleton
 } from "@mui/material";
 import { toast, Toaster } from "sonner";
-import { generateTimeSlots, isSlotInPast, formatTime12h } from "@/lib/time";
+import { generateTimeSlots, getTodayString, isSlotInPast, formatTime12h } from "@/lib/time";
 import { isValidCancelCode } from "@/lib/codes";
 import ThemeToggle from "@/components/theme-toggle";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useTheme } from "@/lib/theme-context";
+import { ENABLE_FITUR, FITUR_ROOM_SEED } from "@/lib/constants";
 
 const slots = generateTimeSlots();
 
-function ManageCalendar({ value, onChange, mode }) {
+const FITUR_TIME_ZONE = "Europe/Madrid";
+const DEFAULT_TIME_ZONE = "America/Caracas";
+const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+
+const resolveTimeZoneForRoom = (roomId, rooms) => {
+  const key = String(roomId || "");
+  if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
+  const room = Array.isArray(rooms) ? rooms.find((r) => (r?.id ?? r?.name) === roomId) : null;
+  const name = room?.name;
+  if (name && FITUR_NAMES.has(name)) return FITUR_TIME_ZONE;
+  return DEFAULT_TIME_ZONE;
+};
+
+function ManageCalendar({ value, onChange, mode, todayString }) {
   const [cursorMonth, setCursorMonth] = useState(() => parseISO(value));
 
   useEffect(() => {
@@ -63,20 +77,22 @@ function ManageCalendar({ value, onChange, mode }) {
     return result;
   })();
 
-  const today = startOfDay(new Date());
   const selected = parseISO(value);
 
   const canSelect = (day) => {
     if (!day) return false;
     if (!isSameMonth(day, cursorMonth)) return false;
-    return !isBefore(startOfDay(day), today);
+    const dayString = format(day, "yyyy-MM-dd");
+    if (!todayString) return true;
+    return dayString >= todayString;
   };
 
   const dayButtonClass = (day) => {
-    const selectedDay = day && isSameDay(day, selected);
+    const dayString = day ? format(day, "yyyy-MM-dd") : "";
+    const selectedDay = !!dayString && dayString === value;
     const outside = day && !isSameMonth(day, cursorMonth);
-    const past = day && isBefore(startOfDay(day), today);
-    const isToday = day && isSameDay(day, today);
+    const past = !!dayString && !!todayString && dayString < todayString;
+    const isToday = !!dayString && !!todayString && dayString === todayString;
 
     if (!day) return "";
 
@@ -214,7 +230,8 @@ export default function ManageBookingPage() {
   const loadRooms = async () => {
     setLoadingRooms(true);
     try {
-      const response = await fetch("/api/rooms");
+      const groupParam = ENABLE_FITUR ? "?group=all" : "";
+      const response = await fetch(`/api/rooms${groupParam}`);
       const data = await response.json();
       if (!Array.isArray(data)) {
         setRooms([]);
@@ -264,6 +281,7 @@ export default function ManageBookingPage() {
         // Agrupar slots de la reserva
         const bookingSlots = data.map(b => b.time?.slice(0, 5)).filter(Boolean).sort();
         setSelectedSlots(bookingSlots);
+        await loadAvailability(first.room_id, first.date);
       } else {
         toast.error("Reserva no encontrada");
         router.push("/");
@@ -390,6 +408,8 @@ export default function ManageBookingPage() {
   }
 
   const firstBooking = booking[0];
+  const timeZone = resolveTimeZoneForRoom(selectedRoom, rooms);
+  const todayString = getTodayString(new Date(), timeZone);
   const currentRoomName =
     firstBooking.room_name ||
     rooms.find((r) => (r?.id ?? r?.name) === firstBooking.room_id)?.name ||
@@ -414,7 +434,7 @@ export default function ManageBookingPage() {
       if (bookingTimes.has(t)) {
         return { time: t, status: "reserved", booking: bookingTimes.get(t) };
       }
-      if (isSlotInPast(selectedDate, t)) return { time: t, status: "invalid" };
+      if (isSlotInPast(selectedDate, t, new Date(), timeZone)) return { time: t, status: "invalid" };
       return { time: t, status: "available" };
     });
   })();
@@ -655,11 +675,12 @@ export default function ManageBookingPage() {
                       </Typography>
                       <ManageCalendar
                         value={selectedDate}
-                        mode={mode}
-                        onChange={(value) => {
-                          setSelectedDate(value);
-                          loadAvailability(selectedRoom, value);
+                        onChange={(next) => {
+                          setSelectedDate(next);
+                          loadAvailability(selectedRoom, next);
                         }}
+                        mode={mode}
+                        todayString={todayString}
                       />
                     </CardContent>
                   </Card>

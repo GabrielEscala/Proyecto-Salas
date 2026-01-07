@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
+import { FITUR_ROOM_SEED } from "@/lib/constants";
 import {
   generateTimeSlots,
   getNextAvailableSlot,
@@ -21,6 +22,30 @@ const createId = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
+
+const FITUR_TIME_ZONE = "Europe/Madrid";
+const DEFAULT_TIME_ZONE = "America/Caracas";
+const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+
+const resolveTimeZoneForRoomId = async (roomId) => {
+  const key = String(roomId || "");
+  if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
+
+  if (!supabase || !roomId) return DEFAULT_TIME_ZONE;
+  try {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("name")
+      .eq("id", roomId)
+      .limit(1);
+    if (error) return DEFAULT_TIME_ZONE;
+    const name = Array.isArray(data) && data[0] ? data[0].name : null;
+    if (name && FITUR_NAMES.has(name)) return FITUR_TIME_ZONE;
+    return DEFAULT_TIME_ZONE;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
+};
 
 const getBaseUrl = () => {
   let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -63,16 +88,18 @@ const createMemoryBookingResponse = async ({ roomId, firstName, lastName, email,
 
   const uniqueTimes = [...new Set(requestedTimes.map(normalizeTime))].filter(Boolean);
 
-  if (isDateBeforeToday(date)) {
+  const timeZone = String(roomId || "").startsWith("fitur:") ? FITUR_TIME_ZONE : DEFAULT_TIME_ZONE;
+
+  if (isDateBeforeToday(date, new Date(), timeZone)) {
     return NextResponse.json(
       { error: "No puedes reservar en fechas pasadas." },
       { status: 422 }
     );
   }
 
-  const todayString = getTodayString();
+  const todayString = getTodayString(new Date(), timeZone);
   if (date === todayString) {
-    const pastSlot = uniqueTimes.find((slot) => isSlotInPast(date, slot));
+    const pastSlot = uniqueTimes.find((slot) => isSlotInPast(date, slot, new Date(), timeZone));
     if (pastSlot) {
       return NextResponse.json(
         { error: `El horario ${pastSlot} ya pasó.` },
@@ -340,16 +367,18 @@ export async function POST(request) {
 
   const uniqueTimes = [...new Set(requestedTimes)];
 
-  if (isDateBeforeToday(date)) {
+  const timeZone = await resolveTimeZoneForRoomId(roomId);
+
+  if (isDateBeforeToday(date, new Date(), timeZone)) {
     return NextResponse.json(
       { error: "No puedes reservar en fechas pasadas." },
       { status: 422 }
     );
   }
 
-  const todayString = getTodayString();
+  const todayString = getTodayString(new Date(), timeZone);
   if (date === todayString) {
-    const pastSlot = uniqueTimes.find((slot) => isSlotInPast(date, slot));
+    const pastSlot = uniqueTimes.find((slot) => isSlotInPast(date, slot, new Date(), timeZone));
     if (pastSlot) {
       return NextResponse.json(
         { error: `El horario ${pastSlot} ya pasó.` },

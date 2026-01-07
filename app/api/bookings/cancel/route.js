@@ -2,10 +2,35 @@ import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
 import { isValidCancelCode } from "@/lib/codes";
 import { getTodayString, isDateBeforeToday, isSlotInPast } from "@/lib/time";
+import { FITUR_ROOM_SEED } from "@/lib/constants";
 
 const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
 
 const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SALAS_MEMORY_BOOKINGS__ = []);
+
+const FITUR_TIME_ZONE = "Europe/Madrid";
+const DEFAULT_TIME_ZONE = "America/Caracas";
+const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+
+const resolveTimeZoneForRoomId = async (roomId) => {
+  const key = String(roomId || "");
+  if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
+
+  if (!supabase || !roomId) return DEFAULT_TIME_ZONE;
+  try {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("name")
+      .eq("id", roomId)
+      .limit(1);
+    if (error) return DEFAULT_TIME_ZONE;
+    const name = Array.isArray(data) && data[0] ? data[0].name : null;
+    if (name && FITUR_NAMES.has(name)) return FITUR_TIME_ZONE;
+    return DEFAULT_TIME_ZONE;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
+};
 
 const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) => {
   let bookings = [];
@@ -32,16 +57,17 @@ const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) =>
   const firstBooking = bookings[0];
   const bookingDate = firstBooking.date;
   const bookingTime = normalizeTime(firstBooking.time);
+  const timeZone = String(firstBooking.room_id || "").startsWith("fitur:") ? FITUR_TIME_ZONE : DEFAULT_TIME_ZONE;
 
-  if (isDateBeforeToday(bookingDate)) {
+  if (isDateBeforeToday(bookingDate, new Date(), timeZone)) {
     return NextResponse.json(
       { error: "No puedes cancelar reservas pasadas." },
       { status: 422 }
     );
   }
 
-  const todayString = getTodayString();
-  if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime)) {
+  const todayString = getTodayString(new Date(), timeZone);
+  if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime, new Date(), timeZone)) {
     return NextResponse.json(
       { error: "No puedes cancelar una reserva que ya pasó." },
       { status: 422 }
@@ -121,16 +147,17 @@ export async function POST(request) {
   const firstBooking = bookings[0];
   const bookingDate = firstBooking.date;
   const bookingTime = firstBooking.time?.slice(0, 5);
+  const timeZone = await resolveTimeZoneForRoomId(firstBooking.room_id);
 
-  if (isDateBeforeToday(bookingDate)) {
+  if (isDateBeforeToday(bookingDate, new Date(), timeZone)) {
     return NextResponse.json(
       { error: "No puedes cancelar reservas pasadas." },
       { status: 422 }
     );
   }
 
-  const todayString = getTodayString();
-  if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime)) {
+  const todayString = getTodayString(new Date(), timeZone);
+  if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime, new Date(), timeZone)) {
     return NextResponse.json(
       { error: "No puedes cancelar una reserva que ya pasó." },
       { status: 422 }

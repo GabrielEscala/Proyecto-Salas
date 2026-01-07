@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
+import { FITUR_ROOM_SEED } from "@/lib/constants";
 import {
   generateTimeSlots,
   getNextAvailableSlot,
@@ -16,6 +17,30 @@ const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
 const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SALAS_MEMORY_BOOKINGS__ = []);
 
 const slots = generateTimeSlots();
+
+const FITUR_TIME_ZONE = "Europe/Madrid";
+const DEFAULT_TIME_ZONE = "America/Caracas";
+const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+
+const resolveTimeZoneForRoomId = async (roomId) => {
+  const key = String(roomId || "");
+  if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
+
+  if (!supabase || !roomId) return DEFAULT_TIME_ZONE;
+  try {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("name")
+      .eq("id", roomId)
+      .limit(1);
+    if (error) return DEFAULT_TIME_ZONE;
+    const name = Array.isArray(data) && data[0] ? data[0].name : null;
+    if (name && FITUR_NAMES.has(name)) return FITUR_TIME_ZONE;
+    return DEFAULT_TIME_ZONE;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
+};
 
 const formatMemoryBookingRow = (row) => ({
   id: row.id,
@@ -43,18 +68,20 @@ const editMemoryBooking = ({ cancelCode, newRoomId, newDate, newTimes }) => {
 
   const firstBooking = existing[0];
 
-  if (isDateBeforeToday(newDate)) {
+  const timeZone = String(newRoomId || "").startsWith("fitur:") ? FITUR_TIME_ZONE : DEFAULT_TIME_ZONE;
+
+  if (isDateBeforeToday(newDate, new Date(), timeZone)) {
     return NextResponse.json(
       { error: "No puedes editar a una fecha pasada." },
       { status: 422 }
     );
   }
 
-  const todayString = getTodayString();
+  const todayString = getTodayString(new Date(), timeZone);
   const uniqueNewTimes = [...new Set(newTimes.map(normalizeTime))].filter(Boolean);
 
   if (newDate === todayString) {
-    const pastSlot = uniqueNewTimes.find((slot) => isSlotInPast(newDate, slot));
+    const pastSlot = uniqueNewTimes.find((slot) => isSlotInPast(newDate, slot, new Date(), timeZone));
     if (pastSlot) {
       return NextResponse.json(
         { error: `El horario ${pastSlot} ya pasó.` },
@@ -183,19 +210,21 @@ export async function POST(request) {
 
   const firstBooking = currentBookings[0];
 
+  const timeZone = await resolveTimeZoneForRoomId(newRoomId);
+
   // Validar nueva fecha
-  if (isDateBeforeToday(newDate)) {
+  if (isDateBeforeToday(newDate, new Date(), timeZone)) {
     return NextResponse.json(
       { error: "No puedes editar a una fecha pasada." },
       { status: 422 }
     );
   }
 
-  const todayString = getTodayString();
+  const todayString = getTodayString(new Date(), timeZone);
   const uniqueNewTimes = [...new Set(newTimes)];
   
   if (newDate === todayString) {
-    const pastSlot = uniqueNewTimes.find((slot) => isSlotInPast(newDate, slot));
+    const pastSlot = uniqueNewTimes.find((slot) => isSlotInPast(newDate, slot, new Date(), timeZone));
     if (pastSlot) {
       return NextResponse.json(
         { error: `El horario ${pastSlot} ya pasó.` },
