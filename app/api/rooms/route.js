@@ -25,7 +25,10 @@ const getRequestedGroup = (request) => {
 
 const filterRoomsByGroup = (rooms, group) => {
   const list = Array.isArray(rooms) ? rooms : [];
-  if (!ENABLE_FITUR) return list;
+  if (!ENABLE_FITUR) {
+    // When the feature is disabled, never expose Fitur rooms (they might already exist in Supabase).
+    return list.filter((r) => !FITUR_NAMES.has(r?.name));
+  }
   if (group === "fitur") return list.filter((r) => FITUR_NAMES.has(r?.name));
   if (group === "all") return list;
   // default / salas
