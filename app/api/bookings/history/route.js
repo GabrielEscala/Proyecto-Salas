@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
+import { parseBookingNotes } from "@/lib/booking-notes";
 
 const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SALAS_MEMORY_BOOKINGS__ = []);
 
 const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
 
 const formatBookingRow = (row) => ({
+  ...(parseBookingNotes(row.notes ?? row.company) || {}),
   id: row.id,
   room_id: row.room_id,
   date: row.date,
@@ -13,7 +15,8 @@ const formatBookingRow = (row) => ({
   first_name: row.first_name,
   last_name: row.last_name,
   email: row.email ?? null,
-  company: row.company ?? row.notes ?? null,
+  company: (parseBookingNotes(row.notes ?? row.company)?.company ?? row.company ?? row.notes) ?? null,
+  clients: (parseBookingNotes(row.notes ?? row.company)?.clients ?? row.clients) ?? null,
   cancel_code: row.cancel_code,
   room_name: row.rooms?.name ?? row.room_name,
   storage: row.storage ?? row._storage ?? (row.rooms ? "supabase" : "memory")

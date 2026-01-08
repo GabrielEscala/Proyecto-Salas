@@ -229,11 +229,12 @@ function CalendlyCalendar({ value, onChange, mode, todayString, timeZone }) {
   );
 }
 
-function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompanyChange, onSuccess }) {
+function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompanyChange, isFitur, onSuccess }) {
   const { mode } = useTheme();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [clients, setClients] = useState("");
   const [loading, setLoading] = useState(false);
   const [openCode, setOpenCode] = useState(false);
 
@@ -257,6 +258,7 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
           lastName,
           email,
           company,
+          clients: isFitur ? clients : "",
           date,
           times: sortedTimes
         })
@@ -306,6 +308,24 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
             }
           }}
         />
+
+      {isFitur ? (
+        <TextField
+          label="Clientes"
+          value={clients}
+          onChange={(e) => setClients(e.target.value)}
+          fullWidth
+          InputLabelProps={{ shrink: true }}
+          sx={{
+            "& .MuiOutlinedInput-root": { borderRadius: "14px" },
+            "& .MuiInputBase-input": {
+              fontSize: "16px",
+              lineHeight: 1.5,
+              padding: "14px 14px !important"
+            }
+          }}
+        />
+      ) : null}
         <TextField
           label="Apellido"
           value={lastName}
@@ -835,6 +855,7 @@ export default function CalendlyHome() {
                       ? `${slot.booking?.first_name || ""} ${slot.booking?.last_name || ""}`.trim()
                       : "";
                     const reservedCompany = isReserved ? slot.booking?.company : null;
+                    const reservedClients = isReserved ? slot.booking?.clients : null;
 
                     return (
                       <div key={slot.time} className="flex items-center gap-2">
@@ -895,10 +916,11 @@ export default function CalendlyHome() {
                           }}
                         >
                           {isAvailable ? "Disponible" : isReserved ? "Ocupada" : "No reservable"}
-                          {isReserved && (reservedLabel || reservedCompany) ? (
+                          {isReserved && (reservedLabel || reservedCompany || reservedClients) ? (
                             <div className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 text-right">
                               {reservedLabel ? <div className="truncate">{reservedLabel}</div> : null}
                               {reservedCompany ? <div className="truncate">{reservedCompany}</div> : null}
+                              {reservedClients ? <div className="truncate">Clientes: {reservedClients}</div> : null}
                             </div>
                           ) : null}
                         </Box>
@@ -960,6 +982,7 @@ export default function CalendlyHome() {
                   times={selectedTimes}
                   company={company}
                   onCompanyChange={setCompany}
+                  isFitur={group === "fitur"}
                   onSuccess={(payload) => {
                     const cancelCode = payload?.cancel_code;
                     const cancelUrl = payload?.cancel_url;

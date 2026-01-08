@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
 import { FITUR_ROOM_SEED } from "@/lib/constants";
+import { composeBookingNotes, parseBookingNotes } from "@/lib/booking-notes";
 import {
   generateTimeSlots,
   getNextAvailableSlot,
@@ -106,7 +107,7 @@ const getMemoryBookings = ({ date, roomId, cancelCode }) => {
   return filtered.map((row) => formatBookingRow({ ...row, _storage: "memory" }));
 };
 
-const createMemoryBookingResponse = async ({ roomId, firstName, lastName, email, company, date, time, times, storageReason, storageError }) => {
+const createMemoryBookingResponse = async ({ roomId, firstName, lastName, email, company, clients, date, time, times, storageReason, storageError }) => {
   const requestedTimes = Array.isArray(times)
     ? times
     : time
@@ -178,14 +179,15 @@ const createMemoryBookingResponse = async ({ roomId, firstName, lastName, email,
   }
 
   const cancelCode = generateCancelCode();
+  const composedNotes = composeBookingNotes({ company, clients });
   const insertPayload = uniqueTimes.map((slot) => ({
     id: createId(),
     room_id: roomId,
     first_name: firstName.trim(),
     last_name: lastName.trim(),
     email: email.trim().toLowerCase(),
-    notes: company?.trim?.() || company || null,
-    company: company?.trim?.() || company || null,
+    notes: composedNotes || null,
+    company: String(company || "").trim() || null,
     date,
     time: `${slot}:00`,
     cancel_code: cancelCode
@@ -244,6 +246,7 @@ const createMemoryBookingResponse = async ({ roomId, firstName, lastName, email,
 };
 
 const formatBookingRow = (row) => ({
+  ...(parseBookingNotes(row.notes ?? row.company) || {}),
   id: row.id,
   room_id: row.room_id,
   date: row.date,
@@ -251,7 +254,8 @@ const formatBookingRow = (row) => ({
   first_name: row.first_name,
   last_name: row.last_name,
   email: row.email ?? null,
-  company: row.company ?? row.notes ?? null,
+  company: (parseBookingNotes(row.notes ?? row.company)?.company ?? row.company ?? row.notes) ?? null,
+  clients: (parseBookingNotes(row.notes ?? row.company)?.clients ?? row.clients) ?? null,
   cancel_code: row.cancel_code,
   room_name: row.rooms?.name ?? row.room_name,
   storage: row.storage ?? row._storage ?? (row.rooms ? "supabase" : "memory")
@@ -412,7 +416,7 @@ export async function POST(request) {
     }
 
   const body = await request.json();
-  const { roomId, firstName, lastName, email, company, date, time, times } = body;
+  const { roomId, firstName, lastName, email, company, clients, date, time, times } = body;
   const resolvedRoomId = await resolveSupabaseRoomId(roomId);
   const requestedTimes = Array.isArray(times)
     ? times
@@ -470,7 +474,7 @@ export async function POST(request) {
         { status: 503 }
       );
     }
-    return await createMemoryBookingResponse({ roomId: resolvedRoomId, firstName, lastName, email, company, date, time, times, storageReason: "supabase_error", storageError: dayError?.message });
+    return await createMemoryBookingResponse({ roomId: resolvedRoomId, firstName, lastName, email, company, clients, date, time, times, storageReason: "supabase_error", storageError: dayError?.message });
   }
 
   // Verificar conflictos: debe ser la misma sala Y el mismo horario
@@ -516,7 +520,7 @@ export async function POST(request) {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim().toLowerCase(),
-        notes: company.trim(),
+        notes: composeBookingNotes({ company, clients }) || null,
         date,
         time: timeFormatted,
         cancel_code: cancelCode
@@ -543,7 +547,7 @@ export async function POST(request) {
         { status: 503 }
       );
     }
-    return await createMemoryBookingResponse({ roomId: resolvedRoomId, firstName, lastName, email, company, date, time, times, storageReason: "supabase_error", storageError: error?.message });
+    return await createMemoryBookingResponse({ roomId: resolvedRoomId, firstName, lastName, email, company, clients, date, time, times, storageReason: "supabase_error", storageError: error?.message });
   }
 
           const formatted = (Array.isArray(data) ? data : [data]).map(formatBookingRow);
@@ -555,7 +559,7 @@ export async function POST(request) {
                 { status: 503 }
               );
             }
-            return await createMemoryBookingResponse({ roomId: resolvedRoomId, firstName, lastName, email, company, date, time, times, storageReason: "supabase_error", storageError: "Empty insert result" });
+            return await createMemoryBookingResponse({ roomId: resolvedRoomId, firstName, lastName, email, company, clients, date, time, times, storageReason: "supabase_error", storageError: "Empty insert result" });
           }
   
   const firstBooking = formatted[0];

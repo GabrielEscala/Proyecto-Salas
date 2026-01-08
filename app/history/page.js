@@ -299,6 +299,11 @@ export default function HistoryPage() {
                                   {b.company}
                                 </p>
                               ) : null}
+                              {b.clients ? (
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 truncate">
+                                  Clientes: {b.clients}
+                                </p>
+                              ) : null}
                             </div>
 
                             <div className="text-right">
