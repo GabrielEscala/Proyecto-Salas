@@ -22,6 +22,38 @@ const FITUR_TIME_ZONE = "Europe/Madrid";
 const DEFAULT_TIME_ZONE = "America/Caracas";
 const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
 
+const resolveSupabaseRoomId = async (roomId) => {
+  const key = String(roomId || "");
+  if (!supabase) return roomId;
+  if (!key.startsWith("fitur:")) return roomId;
+
+  const seed = FITUR_ROOM_SEED.find((r) => r.id === key);
+  const name = seed?.name;
+  if (!name) return roomId;
+
+  try {
+    const { data: existing, error: fetchError } = await supabase
+      .from("rooms")
+      .select("id, name")
+      .eq("name", name)
+      .limit(1);
+    if (!fetchError && Array.isArray(existing) && existing[0]?.id) return existing[0].id;
+
+    await supabase.from("rooms").insert({ name });
+
+    const { data: created } = await supabase
+      .from("rooms")
+      .select("id, name")
+      .eq("name", name)
+      .limit(1);
+    if (Array.isArray(created) && created[0]?.id) return created[0].id;
+  } catch {
+    // ignore
+  }
+
+  return roomId;
+};
+
 const resolveTimeZoneForRoomId = async (roomId) => {
   const key = String(roomId || "");
   if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
@@ -197,6 +229,8 @@ export async function POST(request) {
     return editMemoryBooking({ cancelCode, newRoomId, newDate, newTimes });
   }
 
+  const resolvedRoomId = await resolveSupabaseRoomId(newRoomId);
+
   // Obtener reserva actual
   const { data: currentBookings, error: fetchError } = await supabase
     .from("bookings")
@@ -210,7 +244,7 @@ export async function POST(request) {
 
   const firstBooking = currentBookings[0];
 
-  const timeZone = await resolveTimeZoneForRoomId(newRoomId);
+  const timeZone = await resolveTimeZoneForRoomId(resolvedRoomId);
 
   // Validar nueva fecha
   if (isDateBeforeToday(newDate, new Date(), timeZone)) {
@@ -248,7 +282,7 @@ export async function POST(request) {
     .from("bookings")
     .select("id, room_id, date, time, first_name, last_name, cancel_code")
     .eq("date", newDate)
-    .eq("room_id", newRoomId);
+    .eq("room_id", resolvedRoomId);
 
   if (conflictError) {
     return NextResponse.json(

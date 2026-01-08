@@ -608,7 +608,7 @@ export default function CalendlyHome() {
                         background: group === "salas" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
                       }}
                     >
-                      Salas
+                      Caracas
                     </Button>
                     <Button
                       variant={group === "fitur" ? "contained" : "outlined"}
