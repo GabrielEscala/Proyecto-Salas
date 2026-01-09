@@ -3,8 +3,20 @@
 -- Agregar email y código de cancelación a bookings
 ALTER TABLE bookings 
 ADD COLUMN IF NOT EXISTS email TEXT,
-ADD COLUMN IF NOT EXISTS cancel_code TEXT UNIQUE,
+ADD COLUMN IF NOT EXISTS cancel_code TEXT,
 ADD COLUMN IF NOT EXISTS notes TEXT;
+
+-- IMPORTANTE: cancel_code se reutiliza para reservas con múltiples horarios, por lo tanto NO debe ser único.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'bookings_cancel_code_key'
+  ) THEN
+    ALTER TABLE bookings DROP CONSTRAINT bookings_cancel_code_key;
+  END IF;
+END $$;
 
 -- Índices para mejor rendimiento
 CREATE INDEX IF NOT EXISTS bookings_cancel_code_idx ON bookings(cancel_code);

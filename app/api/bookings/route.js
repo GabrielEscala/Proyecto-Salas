@@ -541,10 +541,30 @@ export async function POST(request) {
     .select("id, room_id, date, time, first_name, last_name, email, notes, cancel_code, rooms(name)");
 
   if (error) {
+    const msg = String(error?.message || "");
+    const code = String(error?.code || "");
+    const isCancelCodeUnique =
+      code === "23505" && /cancel_code/i.test(msg);
+    if (isCancelCodeUnique) {
+      return NextResponse.json(
+        {
+          error:
+            "No pudimos guardar varios horarios porque tu base de datos tiene cancel_code como UNIQUE. Debes quitar esa restricción en Supabase para permitir reservas múltiples.",
+          hint: "En Supabase, elimina la restricción UNIQUE de bookings.cancel_code o aplica la migración actualizada."
+        },
+        {
+          status: 409,
+          headers: IS_VERCEL
+            ? { "x-salas-supabase-error": msg.slice(0, 200) }
+            : undefined
+        }
+      );
+    }
+
     if (IS_VERCEL) {
       return NextResponse.json(
         { error: "No pudimos guardar la reserva. Intenta nuevamente." },
-        { status: 503 }
+        { status: 503, headers: { "x-salas-supabase-error": msg.slice(0, 200) } }
       );
     }
     return await createMemoryBookingResponse({ roomId: resolvedRoomId, firstName, lastName, email, company, clients, date, time, times, storageReason: "supabase_error", storageError: error?.message });

@@ -356,6 +356,20 @@ export async function POST(request) {
     .select("id, room_id, date, time, first_name, last_name, email, cancel_code, rooms(name)");
 
   if (insertError) {
+    const msg = String(insertError?.message || "");
+    const code = String(insertError?.code || "");
+    const isCancelCodeUnique =
+      code === "23505" && /cancel_code/i.test(msg);
+    if (isCancelCodeUnique) {
+      return NextResponse.json(
+        {
+          error:
+            "No pudimos guardar varios horarios porque tu base de datos tiene cancel_code como UNIQUE. Debes quitar esa restricción en Supabase para permitir reservas múltiples.",
+          hint: "En Supabase, elimina la restricción UNIQUE de bookings.cancel_code o aplica la migración actualizada."
+        },
+        { status: 409 }
+      );
+    }
     console.error(insertError);
     return NextResponse.json(
       { error: "No pudimos crear las nuevas reservas." },
