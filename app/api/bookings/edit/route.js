@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
-import { FITUR_ROOM_SEED } from "@/lib/constants";
+import { FITUR_ROOM_SEED, MALLORCA_ROOM_SEED } from "@/lib/constants";
 import {
   generateTimeSlots,
   getNextAvailableSlot,
@@ -21,13 +21,19 @@ const slots = generateTimeSlots();
 const FITUR_TIME_ZONE = "Europe/Madrid";
 const DEFAULT_TIME_ZONE = "America/Caracas";
 const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 
 const resolveSupabaseRoomId = async (roomId) => {
   const key = String(roomId || "");
   if (!supabase) return roomId;
-  if (!key.startsWith("fitur:")) return roomId;
 
-  const seed = FITUR_ROOM_SEED.find((r) => r.id === key);
+  const isFitur = key.startsWith("fitur:");
+  const isMallorca = key.startsWith("mallorca:");
+  if (!isFitur && !isMallorca) return roomId;
+
+  const seed = isFitur
+    ? FITUR_ROOM_SEED.find((r) => r.id === key)
+    : MALLORCA_ROOM_SEED.find((r) => r.id === key);
   const name = seed?.name;
   if (!name) return roomId;
 
@@ -57,6 +63,7 @@ const resolveSupabaseRoomId = async (roomId) => {
 const resolveTimeZoneForRoomId = async (roomId) => {
   const key = String(roomId || "");
   if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
+  if (key.startsWith("mallorca:")) return FITUR_TIME_ZONE;
 
   if (!supabase || !roomId) return DEFAULT_TIME_ZONE;
   try {
@@ -68,6 +75,7 @@ const resolveTimeZoneForRoomId = async (roomId) => {
     if (error) return DEFAULT_TIME_ZONE;
     const name = Array.isArray(data) && data[0] ? data[0].name : null;
     if (name && FITUR_NAMES.has(name)) return FITUR_TIME_ZONE;
+    if (name && MALLORCA_NAMES.has(name)) return FITUR_TIME_ZONE;
     return DEFAULT_TIME_ZONE;
   } catch {
     return DEFAULT_TIME_ZONE;
@@ -340,7 +348,7 @@ export async function POST(request) {
 
   // Crear nuevas reservas con el mismo código
   const insertPayload = uniqueNewTimes.map((slot) => ({
-    room_id: newRoomId,
+    room_id: resolvedRoomId,
     first_name: firstName || firstBooking.first_name,
     last_name: lastName || firstBooking.last_name,
     email: email || firstBooking.email,

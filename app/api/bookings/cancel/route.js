@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
 import { isValidCancelCode } from "@/lib/codes";
 import { getTodayString, isDateBeforeToday, isSlotInPast } from "@/lib/time";
-import { FITUR_ROOM_SEED } from "@/lib/constants";
+import { FITUR_ROOM_SEED, MALLORCA_ROOM_SEED } from "@/lib/constants";
 
 const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
 
@@ -11,10 +11,12 @@ const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SA
 const FITUR_TIME_ZONE = "Europe/Madrid";
 const DEFAULT_TIME_ZONE = "America/Caracas";
 const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 
 const resolveTimeZoneForRoomId = async (roomId) => {
   const key = String(roomId || "");
   if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
+  if (key.startsWith("mallorca:")) return FITUR_TIME_ZONE;
 
   if (!supabase || !roomId) return DEFAULT_TIME_ZONE;
   try {
@@ -26,6 +28,7 @@ const resolveTimeZoneForRoomId = async (roomId) => {
     if (error) return DEFAULT_TIME_ZONE;
     const name = Array.isArray(data) && data[0] ? data[0].name : null;
     if (name && FITUR_NAMES.has(name)) return FITUR_TIME_ZONE;
+    if (name && MALLORCA_NAMES.has(name)) return FITUR_TIME_ZONE;
     return DEFAULT_TIME_ZONE;
   } catch {
     return DEFAULT_TIME_ZONE;
@@ -57,7 +60,9 @@ const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) =>
   const firstBooking = bookings[0];
   const bookingDate = firstBooking.date;
   const bookingTime = normalizeTime(firstBooking.time);
-  const timeZone = String(firstBooking.room_id || "").startsWith("fitur:") ? FITUR_TIME_ZONE : DEFAULT_TIME_ZONE;
+  const timeZone = (String(firstBooking.room_id || "").startsWith("fitur:") || String(firstBooking.room_id || "").startsWith("mallorca:"))
+    ? FITUR_TIME_ZONE
+    : DEFAULT_TIME_ZONE;
 
   if (isDateBeforeToday(bookingDate, new Date(), timeZone)) {
     return NextResponse.json(

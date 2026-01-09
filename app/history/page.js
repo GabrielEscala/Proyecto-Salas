@@ -37,7 +37,7 @@ export default function HistoryPage() {
   const loadRooms = useCallback(async () => {
     setLoadingRooms(true);
     try {
-      const groupParam = ENABLE_FITUR ? "?group=all" : "";
+      const groupParam = "?group=all";
       const response = await fetch(`/api/rooms${groupParam}`);
       const data = await response.json();
       const list = Array.isArray(data) ? data : [];
@@ -103,6 +103,52 @@ export default function HistoryPage() {
     }));
   }, [items]);
 
+  const exportCsv = useCallback(() => {
+    const list = Array.isArray(items) ? items : [];
+    if (!list.length) {
+      toast.error("No hay reservas para exportar.");
+      return;
+    }
+
+    const escape = (value) => {
+      const v = String(value ?? "");
+      return `"${v.replace(/"/g, '""')}"`;
+    };
+
+    const header = [
+      "Fecha",
+      "Hora",
+      "Nombre",
+      "Apellido",
+      "Empresa",
+      "Clientes",
+      "Sala",
+      "Código"
+    ];
+
+    const rows = list.map((b) => [
+      b.date || "",
+      b.time || "",
+      b.first_name || "",
+      b.last_name || "",
+      b.company || "",
+      b.clients || "",
+      b.room_name || "",
+      b.cancel_code || ""
+    ]);
+
+    const csv = "\ufeff" + [header, ...rows].map((r) => r.map(escape).join(";")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `historial_${from || ""}_a_${to || ""}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, [items, from, to]);
+
   return (
     <main className="min-h-screen">
       <Toaster richColors position="top-right" />
@@ -127,20 +173,35 @@ export default function HistoryPage() {
             </div>
           </div>
 
-          <Button
-            variant="text"
-            onClick={() => {
-              window.location.href = "/";
-            }}
-            sx={{
-              fontWeight: 800,
-              textTransform: "none",
-              borderRadius: "12px",
-              color: mode === "dark" ? "#e2e8f0" : "#0f172a"
-            }}
-          >
-            Volver
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outlined"
+              onClick={exportCsv}
+              disabled={!items.length}
+              sx={{
+                fontWeight: 900,
+                textTransform: "none",
+                borderRadius: "12px",
+                borderWidth: 2
+              }}
+            >
+              Exportar Excel
+            </Button>
+            <Button
+              variant="text"
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              sx={{
+                fontWeight: 800,
+                textTransform: "none",
+                borderRadius: "12px",
+                color: mode === "dark" ? "#e2e8f0" : "#0f172a"
+              }}
+            >
+              Volver
+            </Button>
+          </div>
         </div>
 
         <div

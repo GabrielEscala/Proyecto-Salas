@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
-import { ENABLE_FITUR, FITUR_ROOM_SEED, ROOM_SEED } from "@/lib/constants";
+import { ENABLE_FITUR, FITUR_ROOM_SEED, MALLORCA_ROOM_SEED, ROOM_SEED } from "@/lib/constants";
 
 const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 
 const getGroupParam = () => {
   // fallback-safe parsing for Next.js route handler
@@ -30,9 +31,10 @@ const filterRoomsByGroup = (rooms, group) => {
     return list.filter((r) => !FITUR_NAMES.has(r?.name));
   }
   if (group === "fitur") return list.filter((r) => FITUR_NAMES.has(r?.name));
+  if (group === "mallorca") return list.filter((r) => MALLORCA_NAMES.has(r?.name));
   if (group === "all") return list;
   // default / salas
-  return list.filter((r) => !FITUR_NAMES.has(r?.name));
+  return list.filter((r) => !FITUR_NAMES.has(r?.name) && !MALLORCA_NAMES.has(r?.name));
 };
 
 export async function GET(request) {
@@ -40,7 +42,13 @@ export async function GET(request) {
 
   if (!supabase) {
     if (ENABLE_FITUR && group === "fitur") return NextResponse.json(FITUR_ROOM_SEED, { status: 200 });
-    if (ENABLE_FITUR && group === "all") return NextResponse.json([...ROOM_SEED, ...FITUR_ROOM_SEED], { status: 200 });
+    if (group === "mallorca") return NextResponse.json(MALLORCA_ROOM_SEED, { status: 200 });
+    if (group === "all") {
+      return NextResponse.json(
+        [...ROOM_SEED, ...MALLORCA_ROOM_SEED, ...(ENABLE_FITUR ? FITUR_ROOM_SEED : [])],
+        { status: 200 }
+      );
+    }
     return NextResponse.json(ROOM_SEED, { status: 200 });
   }
 
@@ -60,6 +68,22 @@ export async function GET(request) {
       }
     }
 
+    // Mallorca is always enabled: ensure Sala Palma exists.
+    {
+      const { data: existingMallorca, error: fetchMallorcaError } = await supabase
+        .from("rooms")
+        .select("id, name")
+        .in("name", Array.from(MALLORCA_NAMES));
+
+      if (!fetchMallorcaError) {
+        const existingNames = new Set((existingMallorca || []).map((r) => r.name));
+        const missing = MALLORCA_ROOM_SEED.filter((r) => !existingNames.has(r.name)).map((r) => ({ name: r.name }));
+        if (missing.length) {
+          await supabase.from("rooms").insert(missing);
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from("rooms")
       .select("*")
@@ -67,7 +91,13 @@ export async function GET(request) {
 
     if (error) {
       if (ENABLE_FITUR && group === "fitur") return NextResponse.json(FITUR_ROOM_SEED, { status: 200 });
-      if (ENABLE_FITUR && group === "all") return NextResponse.json([...ROOM_SEED, ...FITUR_ROOM_SEED], { status: 200 });
+      if (group === "mallorca") return NextResponse.json(MALLORCA_ROOM_SEED, { status: 200 });
+      if (group === "all") {
+        return NextResponse.json(
+          [...ROOM_SEED, ...MALLORCA_ROOM_SEED, ...(ENABLE_FITUR ? FITUR_ROOM_SEED : [])],
+          { status: 200 }
+        );
+      }
       return NextResponse.json(ROOM_SEED, { status: 200 });
     }
 
@@ -76,14 +106,27 @@ export async function GET(request) {
     if (ENABLE_FITUR && group === "fitur" && filtered.length === 0) {
       return NextResponse.json(FITUR_ROOM_SEED, { status: 200 });
     }
+    if (group === "mallorca" && filtered.length === 0) {
+      return NextResponse.json(MALLORCA_ROOM_SEED, { status: 200 });
+    }
     if (ENABLE_FITUR && group === "all") {
+      return NextResponse.json(filtered, { status: 200 });
+    }
+
+    if (group === "all") {
       return NextResponse.json(filtered, { status: 200 });
     }
 
     return NextResponse.json(filtered, { status: 200 });
   } catch (error) {
     if (ENABLE_FITUR && group === "fitur") return NextResponse.json(FITUR_ROOM_SEED, { status: 200 });
-    if (ENABLE_FITUR && group === "all") return NextResponse.json([...ROOM_SEED, ...FITUR_ROOM_SEED], { status: 200 });
+    if (group === "mallorca") return NextResponse.json(MALLORCA_ROOM_SEED, { status: 200 });
+    if (group === "all") {
+      return NextResponse.json(
+        [...ROOM_SEED, ...MALLORCA_ROOM_SEED, ...(ENABLE_FITUR ? FITUR_ROOM_SEED : [])],
+        { status: 200 }
+      );
+    }
     return NextResponse.json(ROOM_SEED, { status: 200 });
   }
 }

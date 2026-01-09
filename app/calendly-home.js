@@ -423,7 +423,7 @@ export default function CalendlyHome() {
   const { mode } = useTheme();
 
   const [group, setGroup] = useState("salas");
-  const timeZone = group === "fitur" ? "Europe/Madrid" : "America/Caracas";
+  const timeZone = group === "fitur" || group === "mallorca" ? "Europe/Madrid" : "America/Caracas";
   const todayString = useMemo(() => getTodayString(new Date(), timeZone), [timeZone]);
 
   const [rooms, setRooms] = useState([]);
@@ -447,7 +447,7 @@ export default function CalendlyHome() {
     rooms.find((r) => (r.id ?? r.name) === selectedRoom)?.name || "";
 
   const fetchRooms = useCallback(async () => {
-    const groupParam = ENABLE_FITUR ? `?group=${encodeURIComponent(group)}` : "";
+    const groupParam = `?group=${encodeURIComponent(group)}`;
     const res = await fetch(`/api/rooms${groupParam}`);
     const data = await res.json();
     setRooms(Array.isArray(data) ? data : []);
@@ -610,26 +610,49 @@ export default function CalendlyHome() {
               <div className="space-y-4">
                 <CompanyCarousel value={company} onChange={setCompany} mode={mode} />
 
-                {ENABLE_FITUR ? (
-                  <div className={"rounded-2xl border p-2 flex gap-2 " + (mode === "dark" ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white")}
+                <div
+                  className={
+                    "rounded-2xl border p-2 flex gap-2 " +
+                    (mode === "dark" ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white")
+                  }
+                >
+                  <Button
+                    variant={group === "salas" ? "contained" : "outlined"}
+                    onClick={() => {
+                      setGroup("salas");
+                      setSelectedRoom("");
+                    }}
+                    sx={{
+                      flex: 1,
+                      height: 42,
+                      fontWeight: 900,
+                      textTransform: "none",
+                      borderRadius: "14px",
+                      background: group === "salas" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                    }}
                   >
-                    <Button
-                      variant={group === "salas" ? "contained" : "outlined"}
-                      onClick={() => {
-                        setGroup("salas");
-                        setSelectedRoom("");
-                      }}
-                      sx={{
-                        flex: 1,
-                        height: 42,
-                        fontWeight: 900,
-                        textTransform: "none",
-                        borderRadius: "14px",
-                        background: group === "salas" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
-                      }}
-                    >
-                      Caracas
-                    </Button>
+                    Caracas
+                  </Button>
+
+                  <Button
+                    variant={group === "mallorca" ? "contained" : "outlined"}
+                    onClick={() => {
+                      setGroup("mallorca");
+                      setSelectedRoom("");
+                    }}
+                    sx={{
+                      flex: 1,
+                      height: 42,
+                      fontWeight: 900,
+                      textTransform: "none",
+                      borderRadius: "14px",
+                      background: group === "mallorca" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                    }}
+                  >
+                    Mallorca
+                  </Button>
+
+                  {ENABLE_FITUR ? (
                     <Button
                       variant={group === "fitur" ? "contained" : "outlined"}
                       onClick={() => {
@@ -647,8 +670,8 @@ export default function CalendlyHome() {
                     >
                       Fitur
                     </Button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
 
                 <FormControl fullWidth>
                   <InputLabel id="room-label">{group === "fitur" ? "Espacio" : "Sala"}</InputLabel>

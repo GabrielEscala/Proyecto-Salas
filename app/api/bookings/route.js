@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
-import { FITUR_ROOM_SEED } from "@/lib/constants";
+import { FITUR_ROOM_SEED, MALLORCA_ROOM_SEED } from "@/lib/constants";
 import { composeBookingNotes, parseBookingNotes } from "@/lib/booking-notes";
 import {
   generateTimeSlots,
@@ -27,14 +27,20 @@ const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
 const FITUR_TIME_ZONE = "Europe/Madrid";
 const DEFAULT_TIME_ZONE = "America/Caracas";
 const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 const IS_VERCEL = !!process.env.VERCEL || !!process.env.VERCEL_URL;
 
 const resolveSupabaseRoomId = async (roomId) => {
   const key = String(roomId || "");
   if (!supabase) return roomId;
-  if (!key.startsWith("fitur:")) return roomId;
 
-  const seed = FITUR_ROOM_SEED.find((r) => r.id === key);
+  const isFitur = key.startsWith("fitur:");
+  const isMallorca = key.startsWith("mallorca:");
+  if (!isFitur && !isMallorca) return roomId;
+
+  const seed = isFitur
+    ? FITUR_ROOM_SEED.find((r) => r.id === key)
+    : MALLORCA_ROOM_SEED.find((r) => r.id === key);
   const name = seed?.name;
   if (!name) return roomId;
 
@@ -65,6 +71,7 @@ const resolveSupabaseRoomId = async (roomId) => {
 const resolveTimeZoneForRoomId = async (roomId) => {
   const key = String(roomId || "");
   if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
+  if (key.startsWith("mallorca:")) return FITUR_TIME_ZONE;
 
   if (!supabase || !roomId) return DEFAULT_TIME_ZONE;
   try {
@@ -76,6 +83,7 @@ const resolveTimeZoneForRoomId = async (roomId) => {
     if (error) return DEFAULT_TIME_ZONE;
     const name = Array.isArray(data) && data[0] ? data[0].name : null;
     if (name && FITUR_NAMES.has(name)) return FITUR_TIME_ZONE;
+    if (name && MALLORCA_NAMES.has(name)) return FITUR_TIME_ZONE;
     return DEFAULT_TIME_ZONE;
   } catch {
     return DEFAULT_TIME_ZONE;
@@ -123,7 +131,9 @@ const createMemoryBookingResponse = async ({ roomId, firstName, lastName, email,
 
   const uniqueTimes = [...new Set(requestedTimes.map(normalizeTime))].filter(Boolean);
 
-  const timeZone = String(roomId || "").startsWith("fitur:") ? FITUR_TIME_ZONE : DEFAULT_TIME_ZONE;
+  const timeZone = (String(roomId || "").startsWith("fitur:") || String(roomId || "").startsWith("mallorca:"))
+    ? FITUR_TIME_ZONE
+    : DEFAULT_TIME_ZONE;
 
   if (isDateBeforeToday(date, new Date(), timeZone)) {
     return NextResponse.json(

@@ -40,20 +40,23 @@ import { isValidCancelCode } from "@/lib/codes";
 import ThemeToggle from "@/components/theme-toggle";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useTheme } from "@/lib/theme-context";
-import { ENABLE_FITUR, FITUR_ROOM_SEED } from "@/lib/constants";
+import { ENABLE_FITUR, FITUR_ROOM_SEED, MALLORCA_ROOM_SEED } from "@/lib/constants";
 
 const slots = generateTimeSlots();
 
 const FITUR_TIME_ZONE = "Europe/Madrid";
 const DEFAULT_TIME_ZONE = "America/Caracas";
 const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 
 const resolveTimeZoneForRoom = (roomId, rooms) => {
   const key = String(roomId || "");
   if (key.startsWith("fitur:")) return FITUR_TIME_ZONE;
+  if (key.startsWith("mallorca:")) return FITUR_TIME_ZONE;
   const room = Array.isArray(rooms) ? rooms.find((r) => (r?.id ?? r?.name) === roomId) : null;
   const name = room?.name;
   if (name && FITUR_NAMES.has(name)) return FITUR_TIME_ZONE;
+  if (name && MALLORCA_NAMES.has(name)) return FITUR_TIME_ZONE;
   return DEFAULT_TIME_ZONE;
 };
 
@@ -230,7 +233,7 @@ export default function ManageBookingPage() {
   const loadRooms = async () => {
     setLoadingRooms(true);
     try {
-      const groupParam = ENABLE_FITUR ? "?group=all" : "";
+      const groupParam = "?group=all"; // Changed to always use group=all
       const response = await fetch(`/api/rooms${groupParam}`);
       const data = await response.json();
       if (!Array.isArray(data)) {
