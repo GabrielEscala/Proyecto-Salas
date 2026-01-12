@@ -70,32 +70,45 @@ export default function ManageBookingDialog({ open, onClose }) {
       aria-labelledby="manage-booking-dialog-title"
       aria-describedby="manage-booking-dialog-description"
       PaperProps={{
-        className: "rounded-2xl overflow-hidden bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-800"
+        sx: {
+          borderRadius: "24px",
+          overflow: "hidden",
+          backgroundColor: mode === "dark" ? "#0b1220" : "#ffffff",
+          boxShadow:
+            mode === "dark"
+              ? "0 30px 80px rgba(0,0,0,0.65)"
+              : "0 30px 80px rgba(15, 23, 42, 0.18)"
+        }
       }}
     >
-      <DialogTitle 
-        id="manage-booking-dialog-title"
-        className="text-center pb-3 pt-6 px-6"
-      >
-        <Typography 
-          variant="h5" 
-          className="font-bold text-slate-900 dark:text-slate-100 mb-2"
-          sx={{ lineHeight: 1.3 }}
-        >
-          Gestionar Reserva
-        </Typography>
-        <Typography 
-          id="manage-booking-dialog-description"
-          variant="body2" 
-          className="text-slate-600 dark:text-slate-400"
-          sx={{ lineHeight: 1.5 }}
-        >
-          Ingresa tu código de cancelación/edición
-        </Typography>
-      </DialogTitle>
-      <DialogContent className="px-6 pb-6" sx={{ pt: 2 }}>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <Box sx={{ mb: 2 }}>
+      <DialogContent sx={{ p: 0 }}>
+        <Box sx={{ px: 4, pt: 4, pb: 3, textAlign: "center" }}>
+          <Typography
+            id="manage-booking-dialog-title"
+            variant="h6"
+            sx={{
+              fontWeight: 900,
+              lineHeight: 1.15,
+              color: mode === "dark" ? "#e2e8f0" : "#0f172a"
+            }}
+          >
+            Gestionar Reserva
+          </Typography>
+          <Typography
+            id="manage-booking-dialog-description"
+            variant="body2"
+            sx={{
+              mt: 1.5,
+              lineHeight: 1.45,
+              color: mode === "dark" ? "rgba(226,232,240,0.7)" : "rgba(51,65,85,0.75)"
+            }}
+          >
+            Ingresa tu código de cancelación/edición
+          </Typography>
+        </Box>
+
+        <Box sx={{ px: 4, pb: 4 }}>
+          <form onSubmit={handleSubmit}>
             <TextField
               label="Código de Reserva"
               value={code}
@@ -111,129 +124,132 @@ export default function ManageBookingDialog({ open, onClose }) {
               helperText={error || "Formato: CXL- seguido de 8 caracteres"}
               variant="outlined"
               InputLabelProps={{
-                className: mode === "dark" ? "dark:text-slate-400" : "",
-                sx: { 
-                  lineHeight: 1.5,
-                  fontSize: "16px",
-                  color: mode === "dark" ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.6)",
-                  "&.Mui-focused": {
-                    color: "#0E7CFF"
-                  }
+                shrink: true,
+                sx: {
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  color: mode === "dark" ? "rgba(226,232,240,0.75)" : "rgba(51,65,85,0.7)",
+                  "&.Mui-focused": { color: "#0E7CFF" }
                 }
               }}
               FormHelperTextProps={{
-                sx: { 
+                sx: {
                   marginTop: "8px",
-                  lineHeight: 1.5,
-                  fontSize: "0.75rem"
+                  lineHeight: 1.4,
+                  fontSize: "0.78rem",
+                  color: error
+                    ? (mode === "dark" ? "rgba(248,113,113,0.95)" : "#dc2626")
+                    : (mode === "dark" ? "rgba(226,232,240,0.6)" : "rgba(51,65,85,0.65)")
                 }
               }}
               sx={{
-                backgroundColor: mode === "dark" ? "rgba(30, 41, 59, 0.5)" : "white",
-                borderRadius: "16px",
                 "& .MuiOutlinedInput-root": {
-                  height: "56px",
-                  paddingLeft: "16px",
-                  paddingRight: "16px",
+                  borderRadius: "18px",
+                  height: 58,
+                  backgroundColor: mode === "dark" ? "rgba(15,23,42,0.35)" : "rgba(248,250,252,0.9)",
                   "& fieldset": {
-                    borderColor: mode === "dark" ? "rgba(255, 255, 255, 0.3)" : "rgba(0, 0, 0, 0.23)",
+                    borderColor: mode === "dark" ? "rgba(148,163,184,0.35)" : "rgba(148,163,184,0.45)",
                     borderWidth: 2
                   },
                   "&:hover fieldset": {
-                    borderColor: "#0E7CFF",
+                    borderColor: "rgba(14,124,255,0.65)",
                     borderWidth: 2
                   },
                   "&.Mui-focused fieldset": {
                     borderColor: "#0E7CFF",
                     borderWidth: 2
-                  },
-                  transition: "all 0.2s ease"
+                  }
                 },
                 "& .MuiInputBase-input": {
-                  color: mode === "dark" ? "#e2e8f0" : "#1a202c",
-                  lineHeight: 1.5,
-                  padding: "16px 0 !important",
-                  fontSize: "18px",
-                  fontFamily: "monospace",
-                  letterSpacing: "0.15em",
-                  fontWeight: 600
-                },
-                boxShadow: mode === "dark" ? "0 2px 8px rgba(0, 0, 0, 0.3)" : "0 2px 8px rgba(0, 0, 0, 0.08)"
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  letterSpacing: "0.02em",
+                  color: mode === "dark" ? "#e2e8f0" : "#0f172a"
+                }
               }}
             />
-          </Box>
 
-          {error && (
-            <Alert 
-              severity="error" 
-              onClose={() => setError("")}
-              className="rounded-lg"
+            {error ? (
+              <Alert
+                severity="error"
+                onClose={() => setError("")}
+                className="rounded-xl"
+                sx={{
+                  mt: 2,
+                  backgroundColor: mode === "dark" ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.06)",
+                  border: `1px solid ${mode === "dark" ? "rgba(239,68,68,0.35)" : "rgba(239,68,68,0.25)"}`
+                }}
+              >
+                {error}
+              </Alert>
+            ) : null}
+
+            <Box
               sx={{
-                backgroundColor: mode === "dark" ? "rgba(239, 68, 68, 0.1)" : "rgba(239, 68, 68, 0.05)",
-                border: `1px solid ${mode === "dark" ? "rgba(239, 68, 68, 0.3)" : "rgba(239, 68, 68, 0.2)"}`,
-                "& .MuiAlert-message": {
-                  lineHeight: 1.5
-                }
+                mt: 3,
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                gap: 2
               }}
             >
-              {error}
-            </Alert>
-          )}
+              <Button
+                variant="outlined"
+                onClick={onClose}
+                fullWidth
+                size="large"
+                sx={{
+                  height: 52,
+                  borderRadius: "16px",
+                  fontWeight: 900,
+                  textTransform: "none",
+                  borderWidth: 2,
+                  borderColor: mode === "dark" ? "rgba(148,163,184,0.35)" : "rgba(148,163,184,0.6)",
+                  color: mode === "dark" ? "#e2e8f0" : "#0f172a",
+                  "&:hover": { borderWidth: 2, borderColor: "rgba(14,124,255,0.55)" }
+                }}
+              >
+                Cancelar
+              </Button>
 
-          <Box className="flex flex-col sm:flex-row gap-3" sx={{ mt: 3 }}>
-            <Button
-              variant="outlined"
-              onClick={onClose}
-              fullWidth
-              size="large"
-              className="dark:border-slate-600 dark:text-slate-300"
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                size="large"
+                disabled={loading || !code.trim()}
+                sx={{
+                  height: 52,
+                  borderRadius: "16px",
+                  fontWeight: 900,
+                  textTransform: "none",
+                  boxShadow: mode === "dark" ? "0 14px 35px rgba(0,0,0,0.45)" : "0 14px 35px rgba(2, 6, 23, 0.18)",
+                  background: "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #0A56B3 0%, #083d85 100%)"
+                  },
+                  "&:disabled": {
+                    background: mode === "dark" ? "rgba(14,124,255,0.28)" : "rgba(14,124,255,0.45)"
+                  }
+                }}
+              >
+                {loading ? "Verificando..." : "Gestionar Reserva"}
+              </Button>
+            </Box>
+
+            <Typography
+              variant="caption"
               sx={{
-                borderWidth: 2,
-                height: "48px",
-                lineHeight: 1.5,
-                "&:hover": {
-                  borderWidth: 2
-                }
+                display: "block",
+                textAlign: "center",
+                mt: 3,
+                lineHeight: 1.4,
+                color: mode === "dark" ? "rgba(226,232,240,0.55)" : "rgba(51,65,85,0.6)"
               }}
             >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              fullWidth
-              size="large"
-              disabled={loading || !code.trim()}
-              className="font-semibold shadow-lg"
-              sx={{
-                height: "48px",
-                lineHeight: 1.5,
-                background: "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)",
-                "&:hover": {
-                  background: "linear-gradient(135deg, #0A56B3 0%, #083d85 100%)"
-                },
-                "&:disabled": {
-                  background: mode === "dark" ? "rgba(14, 124, 255, 0.3)" : "rgba(14, 124, 255, 0.5)"
-                }
-              }}
-            >
-              {loading ? "Verificando..." : "Gestionar Reserva"}
-            </Button>
-          </Box>
-
-          <Typography 
-            variant="caption" 
-            className="block text-center text-slate-500 dark:text-slate-400"
-            sx={{ 
-              mt: 2,
-              lineHeight: 1.5,
-              display: "block"
-            }}
-          >
-            El código se te proporcionó al confirmar tu reserva
-          </Typography>
-        </form>
+              El código se te proporcionó al confirmar tu reserva
+            </Typography>
+          </form>
+        </Box>
       </DialogContent>
     </Dialog>
   );
