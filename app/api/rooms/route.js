@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
 import { ENABLE_FITUR, FITUR_ROOM_SEED, MALLORCA_ROOM_SEED, ROOM_SEED } from "@/lib/constants";
 
-const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+const FITUR_NAMES = new Set(
+  FITUR_ROOM_SEED.flatMap((r) => [r.name, r.legacyName].filter(Boolean))
+);
 const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 
 const getGroupParam = () => {
@@ -54,6 +56,36 @@ export async function GET(request) {
 
   try {
     if (ENABLE_FITUR) {
+      // Best-effort rename: if legacy rooms exist, rename them to the new requested names.
+      // This keeps historical bookings tied to the same room_id while updating UI labels.
+      for (const seed of FITUR_ROOM_SEED) {
+        if (!seed?.legacyName || !seed?.name) continue;
+        const legacyName = seed.legacyName;
+        const newName = seed.name;
+
+        const { data: newExists, error: newExistsError } = await supabase
+          .from("rooms")
+          .select("id")
+          .eq("name", newName)
+          .limit(1);
+
+        // If the new name already exists, do NOT rename the legacy one to avoid duplicates.
+        if (!newExistsError && Array.isArray(newExists) && newExists.length) continue;
+
+        const { data: legacyExists, error: legacyExistsError } = await supabase
+          .from("rooms")
+          .select("id")
+          .eq("name", legacyName)
+          .limit(1);
+
+        if (!legacyExistsError && Array.isArray(legacyExists) && legacyExists[0]?.id) {
+          await supabase
+            .from("rooms")
+            .update({ name: newName })
+            .eq("id", legacyExists[0].id);
+        }
+      }
+
       const { data: existingFitur, error: fetchFiturError } = await supabase
         .from("rooms")
         .select("id, name")

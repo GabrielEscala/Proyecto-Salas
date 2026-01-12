@@ -20,7 +20,9 @@ const slots = generateTimeSlots();
 
 const FITUR_TIME_ZONE = "Europe/Madrid";
 const DEFAULT_TIME_ZONE = "America/Caracas";
-const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+const FITUR_NAMES = new Set(
+  FITUR_ROOM_SEED.flatMap((r) => [r.name, r.legacyName].filter(Boolean))
+);
 const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 
 const resolveSupabaseRoomId = async (roomId) => {
@@ -35,6 +37,7 @@ const resolveSupabaseRoomId = async (roomId) => {
     ? FITUR_ROOM_SEED.find((r) => r.id === key)
     : MALLORCA_ROOM_SEED.find((r) => r.id === key);
   const name = seed?.name;
+  const legacyName = seed?.legacyName;
   if (!name) return roomId;
 
   try {
@@ -44,6 +47,21 @@ const resolveSupabaseRoomId = async (roomId) => {
       .eq("name", name)
       .limit(1);
     if (!fetchError && Array.isArray(existing) && existing[0]?.id) return existing[0].id;
+
+    if (legacyName) {
+      const { data: legacyExisting, error: legacyFetchError } = await supabase
+        .from("rooms")
+        .select("id, name")
+        .eq("name", legacyName)
+        .limit(1);
+      if (!legacyFetchError && Array.isArray(legacyExisting) && legacyExisting[0]?.id) {
+        await supabase
+          .from("rooms")
+          .update({ name })
+          .eq("id", legacyExisting[0].id);
+        return legacyExisting[0].id;
+      }
+    }
 
     await supabase.from("rooms").insert({ name });
 

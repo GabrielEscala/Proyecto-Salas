@@ -10,7 +10,9 @@ const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SA
 
 const FITUR_TIME_ZONE = "Europe/Madrid";
 const DEFAULT_TIME_ZONE = "America/Caracas";
-const FITUR_NAMES = new Set(FITUR_ROOM_SEED.map((r) => r.name));
+const FITUR_NAMES = new Set(
+  FITUR_ROOM_SEED.flatMap((r) => [r.name, r.legacyName].filter(Boolean))
+);
 const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 
 const resolveTimeZoneForRoomId = async (roomId) => {
