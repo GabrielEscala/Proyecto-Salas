@@ -207,6 +207,8 @@ export default function ManageBookingPage() {
   const today = new Date().toISOString().split("T")[0];
   const { mode } = useTheme();
 
+  const [group, setGroup] = useState("salas");
+  const [roomsReady, setRoomsReady] = useState(false);
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rooms, setRooms] = useState([]);
@@ -228,14 +230,21 @@ export default function ManageBookingPage() {
       return;
     }
     loadBooking();
-    loadRooms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
+  useEffect(() => {
+    if (!code || !isValidCancelCode(code)) return;
+    if (!roomsReady) return;
+    loadRooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group]);
+
   const loadRooms = async () => {
     setLoadingRooms(true);
+    setRooms([]);
     try {
-      const groupParam = "?group=all"; // Changed to always use group=all
+      const groupParam = `?group=${encodeURIComponent(group)}`;
       const response = await fetch(`/api/rooms${groupParam}`);
       const data = await response.json();
       if (!Array.isArray(data)) {
@@ -244,6 +253,15 @@ export default function ManageBookingPage() {
         return;
       }
       setRooms(data);
+
+      const ids = new Set(data.map((r) => (r?.id ?? r?.name)));
+      if (!selectedRoom || !ids.has(selectedRoom)) {
+        const firstId = (data[0] && (data[0].id ?? data[0].name)) || "";
+        setSelectedRoom(firstId);
+        if (firstId && selectedDate) {
+          loadAvailability(firstId, selectedDate);
+        }
+      }
     } catch (error) {
       console.error(error);
       setRooms([]);
@@ -283,6 +301,32 @@ export default function ManageBookingPage() {
         setBooking(data);
         setSelectedRoom(first.room_id);
         setSelectedDate(first.date);
+
+        // Infer group from booking room (so room list can be filtered like home).
+        const roomIdKey = String(first.room_id || "");
+        let roomName = first.room_name || "";
+        if (!roomName) {
+          try {
+            const resRooms = await fetch(`/api/rooms?group=all`);
+            const allRooms = await resRooms.json();
+            if (Array.isArray(allRooms)) {
+              const found = allRooms.find((r) => (r?.id ?? r?.name) === first.room_id);
+              if (found?.name) roomName = found.name;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        let nextGroup = "salas";
+        if (ENABLE_FITUR && (roomIdKey.startsWith("fitur:") || (roomName && FITUR_NAMES.has(roomName)))) {
+          nextGroup = "fitur";
+        } else if (roomIdKey.startsWith("mallorca:") || (roomName && MALLORCA_NAMES.has(roomName))) {
+          nextGroup = "mallorca";
+        }
+        setRoomsReady(true);
+        setGroup(nextGroup);
+
         // Agrupar slots de la reserva
         const bookingSlots = data.map(b => b.time?.slice(0, 5)).filter(Boolean).sort();
         setSelectedSlots(bookingSlots);
@@ -614,6 +658,72 @@ export default function ManageBookingPage() {
                         Sala
                       </Typography>
                       <div className="space-y-3">
+                        <div
+                          className={
+                            "rounded-2xl border p-2 flex gap-2 " +
+                            (mode === "dark" ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white")
+                          }
+                        >
+                          <Button
+                            variant={group === "salas" ? "contained" : "outlined"}
+                            onClick={() => {
+                              setGroup("salas");
+                              setSelectedRoom("");
+                              setAvailabilityBookings([]);
+                            }}
+                            sx={{
+                              flex: 1,
+                              height: 40,
+                              fontWeight: 900,
+                              textTransform: "none",
+                              borderRadius: "14px",
+                              background: group === "salas" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                            }}
+                          >
+                            Caracas
+                          </Button>
+
+                          <Button
+                            variant={group === "mallorca" ? "contained" : "outlined"}
+                            onClick={() => {
+                              setGroup("mallorca");
+                              setSelectedRoom("");
+                              setAvailabilityBookings([]);
+                            }}
+                            sx={{
+                              flex: 1,
+                              height: 40,
+                              fontWeight: 900,
+                              textTransform: "none",
+                              borderRadius: "14px",
+                              background: group === "mallorca" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                            }}
+                          >
+                            Mallorca
+                          </Button>
+
+                          {ENABLE_FITUR ? (
+                            <Button
+                              variant={group === "fitur" ? "contained" : "outlined"}
+                              onClick={() => {
+                                setGroup("fitur");
+                                setSelectedRoom("");
+                                setAvailabilityBookings([]);
+                              }}
+                              sx={{
+                                flex: 1,
+                                height: 40,
+                                fontWeight: 900,
+                                textTransform: "none",
+                                borderRadius: "14px",
+                                background: group === "fitur" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                              }}
+                            >
+                              Fitur
+                            </Button>
+                          ) : null}
+                        </div>
+
                         <Typography
                           variant="body2"
                           className="text-slate-600 dark:text-slate-300 font-semibold"
