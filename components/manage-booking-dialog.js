@@ -33,13 +33,26 @@ export default function ManageBookingDialog({ open, onClose }) {
 
     const trimmedCode = code.trim().toUpperCase();
 
-    if (!isValidCancelCode(trimmedCode)) {
-      setError("Formato de código inválido. Debe ser: CXL-XXXXXXXX");
-      return;
-    }
-
     setLoading(true);
     try {
+      const adminRes = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmedCode })
+      });
+
+      if (adminRes.ok) {
+        router.push("/admin");
+        onClose();
+        return;
+      }
+
+      if (!isValidCancelCode(trimmedCode)) {
+        setError("Formato de código inválido. Debe ser: CXL-XXXXXXXX");
+        setLoading(false);
+        return;
+      }
+
       // Verificar que el código existe
       const response = await fetch(`/api/bookings?cancelCode=${trimmedCode}`);
       const data = await response.json();
