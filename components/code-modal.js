@@ -32,12 +32,6 @@ export default function CodeModal({ open, onClose, cancelCode, cancelUrl, roomNa
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const copyLink = () => {
-    if (!cancelUrl) return;
-    navigator.clipboard.writeText(cancelUrl);
-    toast.success("Enlace copiado al portapapeles");
-  };
-
   if (!cancelCode) return null;
 
   return (
@@ -263,26 +257,7 @@ export default function CodeModal({ open, onClose, cancelCode, cancelUrl, roomNa
                 <li>
                   <span className="font-bold">2.</span> Úsalo para editar o cancelar tu reserva.
                 </li>
-                <li className="break-all">
-                  <span className="font-bold">3.</span> Enlace: <span className="font-mono text-xs bg-slate-200/70 dark:bg-slate-700/60 px-2 py-1 rounded">{cancelUrl}</span>
-                </li>
               </ol>
-              <Box className="mt-4">
-                <Button
-                  variant="outlined"
-                  onClick={copyLink}
-                  startIcon={<ContentCopyIcon />}
-                  size="medium"
-                  className="dark:border-slate-600 dark:text-slate-300"
-                  sx={{
-                    borderWidth: 2,
-                    textTransform: "none",
-                    "&:hover": { borderWidth: 2 }
-                  }}
-                >
-                  Copiar enlace
-                </Button>
-              </Box>
             </Box>
           </Box>
 
@@ -291,28 +266,6 @@ export default function CodeModal({ open, onClose, cancelCode, cancelUrl, roomNa
             className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center"
             sx={{ animation: "fadeInUp 0.6s ease-out 0.45s both" }}
           >
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => {
-                window.open(cancelUrl, "_blank");
-              }}
-              size="large"
-              className="font-semibold shadow-lg"
-              sx={{
-                background: "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)",
-                "&:hover": {
-                  background: "linear-gradient(135deg, #0A56B3 0%, #083d85 100%)",
-                  transform: "translateY(-2px)",
-                  boxShadow: "0 10px 20px rgba(14, 124, 255, 0.3)"
-                },
-                transition: "all 0.2s ease",
-                textTransform: "none",
-                borderRadius: "14px"
-              }}
-            >
-              Gestionar reserva
-            </Button>
             <Button
               variant="text"
               onClick={onClose}

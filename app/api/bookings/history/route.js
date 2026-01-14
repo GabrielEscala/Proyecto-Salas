@@ -1,10 +1,32 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
 import { parseBookingNotes } from "@/lib/booking-notes";
+import { ENABLE_FITUR, FITUR_ROOM_SEED, MALLORCA_ROOM_SEED } from "@/lib/constants";
 
 const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SALAS_MEMORY_BOOKINGS__ = []);
 
 const normalizeTime = (time) => (time?.length ? time.slice(0, 5) : time);
+
+const FITUR_NAMES = new Set(
+  FITUR_ROOM_SEED.flatMap((r) => [r.name, r.legacyName].filter(Boolean))
+);
+const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
+
+const mapFiturSwapName = (name) => {
+  if (name === "Cabina Palma") return "Suite 1";
+  if (name === "Suite 1") return "Cabina Palma";
+  if (name === "Cabina Caracas") return "Suite 2";
+  if (name === "Suite 2") return "Cabina Caracas";
+  return name;
+};
+
+const isInGroup = (roomName, group) => {
+  const name = String(roomName || "");
+  if (group === "fitur") return FITUR_NAMES.has(name);
+  if (group === "mallorca") return MALLORCA_NAMES.has(name);
+  // default / salas
+  return !FITUR_NAMES.has(name) && !MALLORCA_NAMES.has(name);
+};
 
 const formatBookingRow = (row) => ({
   ...(parseBookingNotes(row.notes ?? row.company) || {}),
@@ -18,15 +40,18 @@ const formatBookingRow = (row) => ({
   company: (parseBookingNotes(row.notes ?? row.company)?.company ?? row.company ?? row.notes) ?? null,
   clients: (parseBookingNotes(row.notes ?? row.company)?.clients ?? row.clients) ?? null,
   cancel_code: row.cancel_code,
-  room_name: row.rooms?.name ?? row.room_name,
+  room_name: ENABLE_FITUR
+    ? mapFiturSwapName(row.rooms?.name ?? row.room_name)
+    : (row.rooms?.name ?? row.room_name),
   storage: row.storage ?? row._storage ?? (row.rooms ? "supabase" : "memory")
 });
 
-const getMemoryBookingsInRange = ({ from, to, roomId }) => {
+const getMemoryBookingsInRange = ({ from, to, roomId, group }) => {
   const filtered = MEMORY_BOOKINGS.filter((b) => {
     if (from && String(b.date || "") < from) return false;
     if (to && String(b.date || "") > to) return false;
     if (roomId && b.room_id !== roomId) return false;
+    if (group && !isInGroup(b.room_name, group)) return false;
     return true;
   });
 
@@ -44,6 +69,7 @@ export async function GET(request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const roomId = searchParams.get("roomId");
+  const group = (searchParams.get("group") || "salas").toLowerCase();
 
   if (!from || !to) {
     return NextResponse.json(
@@ -53,7 +79,7 @@ export async function GET(request) {
   }
 
   if (!supabase) {
-    return NextResponse.json(getMemoryBookingsInRange({ from, to, roomId }), {
+    return NextResponse.json(getMemoryBookingsInRange({ from, to, roomId, group }), {
       headers: {
         "x-salas-storage": "memory",
         "x-salas-storage-reason": "supabase_not_configured"
@@ -77,7 +103,7 @@ export async function GET(request) {
     const { data, error } = await query;
 
     if (error) {
-      return NextResponse.json(getMemoryBookingsInRange({ from, to, roomId }), {
+      return NextResponse.json(getMemoryBookingsInRange({ from, to, roomId, group }), {
         headers: {
           "x-salas-storage": "memory",
           "x-salas-storage-reason": "supabase_error",
@@ -86,9 +112,14 @@ export async function GET(request) {
       });
     }
 
+    const supabaseRows = (data || []).filter((row) => {
+      const name = row?.rooms?.name ?? row?.room_name;
+      return isInGroup(name, group);
+    });
+
     const merged = [
-      ...((data || []).map(formatBookingRow)),
-      ...getMemoryBookingsInRange({ from, to, roomId })
+      ...(supabaseRows.map(formatBookingRow)),
+      ...getMemoryBookingsInRange({ from, to, roomId, group })
     ];
 
     const byKey = new Map();
@@ -109,7 +140,7 @@ export async function GET(request) {
       }
     });
   } catch (error) {
-    return NextResponse.json(getMemoryBookingsInRange({ from, to, roomId }), {
+    return NextResponse.json(getMemoryBookingsInRange({ from, to, roomId, group }), {
       headers: {
         "x-salas-storage": "memory",
         "x-salas-storage-reason": "supabase_error",

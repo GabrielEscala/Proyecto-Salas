@@ -24,8 +24,13 @@ import { ENABLE_FITUR } from "@/lib/constants";
 export default function HistoryPage() {
   const { mode } = useTheme();
 
+  const [group, setGroup] = useState("salas");
+
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState("");
+
+  const selectedRoomLabel =
+    rooms.find((r) => (r.id ?? r.name) === selectedRoom)?.name || "";
 
   const [from, setFrom] = useState(() => format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [to, setTo] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -37,7 +42,7 @@ export default function HistoryPage() {
   const loadRooms = useCallback(async () => {
     setLoadingRooms(true);
     try {
-      const groupParam = "?group=all";
+      const groupParam = `?group=${encodeURIComponent(group)}`;
       const response = await fetch(`/api/rooms${groupParam}`);
       const data = await response.json();
       const list = Array.isArray(data) ? data : [];
@@ -47,7 +52,7 @@ export default function HistoryPage() {
     } finally {
       setLoadingRooms(false);
     }
-  }, []);
+  }, [group]);
 
   const loadHistory = useCallback(async () => {
     if (!from || !to) return;
@@ -57,6 +62,7 @@ export default function HistoryPage() {
       const params = new URLSearchParams();
       params.set("from", from);
       params.set("to", to);
+      params.set("group", group);
       if (selectedRoom) params.set("roomId", selectedRoom);
 
       const response = await fetch(`/api/bookings/history?${params.toString()}`);
@@ -75,7 +81,7 @@ export default function HistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [from, to, selectedRoom]);
+  }, [from, to, selectedRoom, group]);
 
   useEffect(() => {
     loadRooms();
@@ -122,8 +128,7 @@ export default function HistoryPage() {
       "Apellido",
       "Empresa",
       "Clientes",
-      "Sala",
-      "Código"
+      "Sala"
     ];
 
     const rows = list.map((b) => [
@@ -133,8 +138,7 @@ export default function HistoryPage() {
       b.last_name || "",
       b.company || "",
       b.clients || "",
-      b.room_name || "",
-      b.cancel_code || ""
+      b.room_name || ""
     ]);
 
     const csv = "\ufeff" + [header, ...rows].map((r) => r.map(escape).join(";")).join("\n");
@@ -218,13 +222,86 @@ export default function HistoryPage() {
                 <Skeleton variant="rounded" height={168} className="rounded-2xl" />
               ) : (
                 <div className="space-y-4">
+                  <div
+                    className={
+                      "rounded-2xl border p-2 flex gap-2 " +
+                      (mode === "dark" ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white")
+                    }
+                  >
+                    <Button
+                      variant={group === "salas" ? "contained" : "outlined"}
+                      onClick={() => {
+                        setGroup("salas");
+                        setSelectedRoom("");
+                      }}
+                      sx={{
+                        flex: 1,
+                        height: 42,
+                        fontWeight: 900,
+                        textTransform: "none",
+                        borderRadius: "14px",
+                        background:
+                          group === "salas" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                      }}
+                    >
+                      Caracas
+                    </Button>
+
+                    <Button
+                      variant={group === "mallorca" ? "contained" : "outlined"}
+                      onClick={() => {
+                        setGroup("mallorca");
+                        setSelectedRoom("");
+                      }}
+                      sx={{
+                        flex: 1,
+                        height: 42,
+                        fontWeight: 900,
+                        textTransform: "none",
+                        borderRadius: "14px",
+                        background:
+                          group === "mallorca"
+                            ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)"
+                            : undefined
+                      }}
+                    >
+                      Mallorca
+                    </Button>
+
+                    {ENABLE_FITUR ? (
+                      <Button
+                        variant={group === "fitur" ? "contained" : "outlined"}
+                        onClick={() => {
+                          setGroup("fitur");
+                          setSelectedRoom("");
+                        }}
+                        sx={{
+                          flex: 1,
+                          height: 42,
+                          fontWeight: 900,
+                          textTransform: "none",
+                          borderRadius: "14px",
+                          background:
+                            group === "fitur" ? "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)" : undefined
+                        }}
+                      >
+                        Fitur
+                      </Button>
+                    ) : null}
+                  </div>
+
                   <FormControl fullWidth>
-                    <InputLabel id="history-room">Sala</InputLabel>
+                    <InputLabel id="history-room">{group === "fitur" ? "Espacio" : "Sala"}</InputLabel>
                     <Select
                       labelId="history-room"
                       value={selectedRoom}
-                      label="Sala"
+                      label={group === "fitur" ? "Espacio" : "Sala"}
                       onChange={(e) => setSelectedRoom(e.target.value)}
+                      displayEmpty
+                      renderValue={(val) => {
+                        if (!val) return "Todas";
+                        return selectedRoomLabel || String(val);
+                      }}
                       MenuProps={{
                         disableScrollLock: true,
                         PaperProps: { sx: { maxHeight: 360, overflowY: "auto", borderRadius: "16px", mt: 1 } },
