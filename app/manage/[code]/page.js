@@ -238,7 +238,7 @@ export default function ManageBookingPage() {
     if (!roomsReady) return;
     loadRooms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group]);
+  }, [group, roomsReady]);
 
   const loadRooms = async () => {
     setLoadingRooms(true);
