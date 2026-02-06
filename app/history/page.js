@@ -291,8 +291,11 @@ export default function HistoryPage() {
                   </div>
 
                   <FormControl fullWidth>
-                    <InputLabel id="history-room">{group === "fitur" ? "Espacio" : "Sala"}</InputLabel>
+                    <InputLabel id="history-room" htmlFor="history-room-select" shrink>
+                      {group === "fitur" ? "Espacio" : "Sala"}
+                    </InputLabel>
                     <Select
+                      id="history-room-select"
                       labelId="history-room"
                       value={selectedRoom}
                       label={group === "fitur" ? "Espacio" : "Sala"}
@@ -312,6 +315,10 @@ export default function HistoryPage() {
                         height: 52,
                         background: mode === "dark" ? "rgba(15,23,42,0.35)" : "rgba(255,255,255,0.9)",
                         boxShadow: mode === "dark" ? "0 2px 10px rgba(0,0,0,0.35)" : "0 2px 10px rgba(0,0,0,0.08)",
+                        "& .MuiSelect-select": {
+                          paddingTop: "18px",
+                          paddingBottom: "10px"
+                        },
                         "& .MuiOutlinedInput-notchedOutline": {
                           borderWidth: 2,
                           borderColor: mode === "dark" ? "rgba(148,163,184,0.35)" : "rgba(148,163,184,0.55)"

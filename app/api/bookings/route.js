@@ -19,6 +19,9 @@ const slots = generateTimeSlots();
 
 const MEMORY_BOOKINGS = globalThis.__SALAS_MEMORY_BOOKINGS__ ?? (globalThis.__SALAS_MEMORY_BOOKINGS__ = []);
 
+const BOOKINGS_CACHE = globalThis.__SALAS_BOOKINGS_CACHE__ ?? (globalThis.__SALAS_BOOKINGS_CACHE__ = new Map());
+const BOOKINGS_CACHE_TTL_MS = 15_000;
+
 const createId = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -360,6 +363,18 @@ export async function GET(request) {
       );
     }
 
+    const cacheKey = `${date}|${roomId || ""}`;
+    const cached = BOOKINGS_CACHE.get(cacheKey);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) {
+      return NextResponse.json(cached.payload, {
+        headers: {
+          "x-salas-storage": "supabase",
+          "x-salas-cache": "hit"
+        }
+      });
+    }
+
     let query = supabase
       .from("bookings")
       .select("id, room_id, date, time, first_name, last_name, email, notes, cancel_code, rooms(name)")
@@ -408,9 +423,16 @@ export async function GET(request) {
     }
 
     const result = Array.from(byKey.values()).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+
+    BOOKINGS_CACHE.set(cacheKey, {
+      expiresAt: now + BOOKINGS_CACHE_TTL_MS,
+      payload: result
+    });
+
     return NextResponse.json(result, {
       headers: {
-        "x-salas-storage": "supabase"
+        "x-salas-storage": "supabase",
+        "x-salas-cache": "miss"
       }
     });
   } catch (error) {
@@ -639,6 +661,15 @@ export async function POST(request) {
     });
   } catch (_) {
     emailStatus = { ok: false, status: "error", error: "unexpected" };
+  }
+
+  try {
+    if (date) {
+      const cacheKey = `${date}|${roomId || ""}`;
+      BOOKINGS_CACHE.delete(cacheKey);
+    }
+  } catch {
+    // ignore
   }
 
   return NextResponse.json(

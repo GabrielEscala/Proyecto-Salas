@@ -7,6 +7,11 @@ const FITUR_NAMES = new Set(
 );
 const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 
+const ROOMS_INIT_STATE = globalThis.__SALAS_ROOMS_INIT_STATE__ ?? (globalThis.__SALAS_ROOMS_INIT_STATE__ = {
+  fitur: false,
+  mallorca: false
+});
+
 const getGroupParam = () => {
   // fallback-safe parsing for Next.js route handler
   try {
@@ -28,15 +33,17 @@ const getRequestedGroup = (request) => {
 
 const filterRoomsByGroup = (rooms, group) => {
   const list = Array.isArray(rooms) ? rooms : [];
-  if (!ENABLE_FITUR) {
-    // When the feature is disabled, never expose Fitur rooms (they might already exist in Supabase).
-    return list.filter((r) => !FITUR_NAMES.has(r?.name));
+  const base = ENABLE_FITUR
+    ? list
+    : list.filter((r) => !FITUR_NAMES.has(r?.name));
+
+  if (group === "fitur") {
+    return ENABLE_FITUR ? base.filter((r) => FITUR_NAMES.has(r?.name)) : [];
   }
-  if (group === "fitur") return list.filter((r) => FITUR_NAMES.has(r?.name));
-  if (group === "mallorca") return list.filter((r) => MALLORCA_NAMES.has(r?.name));
-  if (group === "all") return list;
+  if (group === "mallorca") return base.filter((r) => MALLORCA_NAMES.has(r?.name));
+  if (group === "all") return base;
   // default / salas
-  return list.filter((r) => !FITUR_NAMES.has(r?.name) && !MALLORCA_NAMES.has(r?.name));
+  return base.filter((r) => !MALLORCA_NAMES.has(r?.name));
 };
 
 export async function GET(request) {
@@ -55,7 +62,7 @@ export async function GET(request) {
   }
 
   try {
-    if (ENABLE_FITUR) {
+    if (ENABLE_FITUR && !ROOMS_INIT_STATE.fitur) {
       // Best-effort rename: if legacy rooms exist, rename them to the new requested names.
       // This keeps historical bookings tied to the same room_id while updating UI labels.
       for (const seed of FITUR_ROOM_SEED) {
@@ -98,10 +105,12 @@ export async function GET(request) {
           await supabase.from("rooms").insert(missing);
         }
       }
+
+      ROOMS_INIT_STATE.fitur = true;
     }
 
     // Mallorca is always enabled: ensure Sala Palma exists.
-    {
+    if (!ROOMS_INIT_STATE.mallorca) {
       const { data: existingMallorca, error: fetchMallorcaError } = await supabase
         .from("rooms")
         .select("id, name")
@@ -114,6 +123,8 @@ export async function GET(request) {
           await supabase.from("rooms").insert(missing);
         }
       }
+
+      ROOMS_INIT_STATE.mallorca = true;
     }
 
     const { data, error } = await supabase

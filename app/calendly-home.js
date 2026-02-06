@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addMonths,
   endOfMonth,
@@ -428,9 +428,12 @@ export default function CalendlyHome() {
 
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState("");
+  const [loadingRooms, setLoadingRooms] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayString);
   const [dayBookings, setDayBookings] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
+
+  const roomsRequestIdRef = useRef(0);
 
   const [selectedTimes, setSelectedTimes] = useState([]);
   const [confirmed, setConfirmed] = useState(false);
@@ -447,12 +450,24 @@ export default function CalendlyHome() {
     rooms.find((r) => (r.id ?? r.name) === selectedRoom)?.name || "";
 
   const fetchRooms = useCallback(async () => {
+    const requestId = ++roomsRequestIdRef.current;
+    setLoadingRooms(true);
     const groupParam = `?group=${encodeURIComponent(group)}`;
-    const res = await fetch(`/api/rooms${groupParam}`);
-    const data = await res.json();
-    setRooms(Array.isArray(data) ? data : []);
-    const firstId = (Array.isArray(data) && data[0] && (data[0].id ?? data[0].name)) || "";
-    setSelectedRoom((prev) => prev || firstId);
+    try {
+      const res = await fetch(`/api/rooms${groupParam}`);
+      const data = await res.json();
+      if (requestId !== roomsRequestIdRef.current) return;
+      setRooms(Array.isArray(data) ? data : []);
+      const firstId = (Array.isArray(data) && data[0] && (data[0].id ?? data[0].name)) || "";
+      setSelectedRoom((prev) => prev || firstId);
+    } catch {
+      if (requestId !== roomsRequestIdRef.current) return;
+      setRooms([]);
+      setSelectedRoom("");
+    } finally {
+      if (requestId !== roomsRequestIdRef.current) return;
+      setLoadingRooms(false);
+    }
   }, [group]);
 
   const fetchBookings = useCallback(async () => {
@@ -674,14 +689,18 @@ export default function CalendlyHome() {
                 </div>
 
                 <FormControl fullWidth>
-                  <InputLabel id="room-label">{group === "fitur" ? "Espacio" : "Sala"}</InputLabel>
+                  <InputLabel id="room-label" htmlFor="room-select" shrink>
+                    {group === "fitur" ? "Espacio" : "Sala"}
+                  </InputLabel>
                   <Select
-                    labelId="room-select"
+                    id="room-select"
+                    labelId="room-label"
                     value={selectedRoom}
                     label={group === "fitur" ? "Espacio" : "Sala"}
                     onChange={(e) => setSelectedRoom(e.target.value)}
                     displayEmpty
                     renderValue={(val) => {
+                      if (loadingRooms) return "Cargando...";
                       if (!val) return "Selecciona una sala";
                       return selectedRoomLabel || String(val);
                     }}
@@ -706,6 +725,10 @@ export default function CalendlyHome() {
                       height: 52,
                       background: mode === "dark" ? "rgba(15,23,42,0.35)" : "rgba(255,255,255,0.9)",
                       boxShadow: mode === "dark" ? "0 2px 10px rgba(0,0,0,0.35)" : "0 2px 10px rgba(0,0,0,0.08)",
+                      "& .MuiSelect-select": {
+                        paddingTop: "18px",
+                        paddingBottom: "10px"
+                      },
                       "& .MuiOutlinedInput-notchedOutline": {
                         borderWidth: 2,
                         borderColor: mode === "dark" ? "rgba(148,163,184,0.35)" : "rgba(148,163,184,0.55)"
@@ -717,6 +740,7 @@ export default function CalendlyHome() {
                         borderColor: "rgba(14, 124, 255, 0.9)"
                       }
                     }}
+                    disabled={loadingRooms}
                   >
                     <MenuItem value="" disabled>
                       {group === "fitur" ? "Selecciona un espacio" : "Selecciona una sala"}
