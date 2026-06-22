@@ -259,6 +259,7 @@ export default function CodeModal({ open, onClose, cancelCode, cancelUrl, roomNa
                 </li>
               </ol>
             </Box>
+
           </Box>
 
           {/* Botones */}

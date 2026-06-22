@@ -293,6 +293,11 @@ const formatBookingRow = (row) => ({
   storage: row.storage ?? row._storage ?? (row.rooms ? "supabase" : "memory")
 });
 
+const sanitizeForPublic = (booking) => {
+  const { cancel_code, email, ...safe } = booking;
+  return safe;
+};
+
 const timeWithSeconds = (time) => (time?.length === 5 ? `${time}:00` : time);
 
 export async function GET(request) {
@@ -302,7 +307,8 @@ export async function GET(request) {
   const cancelCode = searchParams.get("cancelCode");
 
   if (!supabase) {
-    return NextResponse.json(getMemoryBookings({ date, roomId, cancelCode }), {
+    const memBookings = getMemoryBookings({ date, roomId, cancelCode });
+    return NextResponse.json(cancelCode ? memBookings : memBookings.map(sanitizeForPublic), {
       headers: {
         "x-salas-storage": "memory",
         "x-salas-storage-reason": "supabase_not_configured"
@@ -423,13 +429,14 @@ export async function GET(request) {
     }
 
     const result = Array.from(byKey.values()).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+    const publicResult = result.map(sanitizeForPublic);
 
     BOOKINGS_CACHE.set(cacheKey, {
       expiresAt: now + BOOKINGS_CACHE_TTL_MS,
-      payload: result
+      payload: publicResult
     });
 
-    return NextResponse.json(result, {
+    return NextResponse.json(publicResult, {
       headers: {
         "x-salas-storage": "supabase",
         "x-salas-cache": "miss"

@@ -237,6 +237,9 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
   const [clients, setClients] = useState("");
   const [loading, setLoading] = useState(false);
   const [openCode, setOpenCode] = useState(false);
+  const [screenChoice, setScreenChoice] = useState("");
+
+  const isCaracas = roomLabel === "Sala Caracas";
 
   const sortedTimes = useMemo(() => {
     const unique = [...new Set((times || []).filter(Boolean))];
@@ -246,6 +249,11 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
   const submit = async (e) => {
     e.preventDefault();
     if (!roomId || !date || !sortedTimes.length) return;
+
+    if (isCaracas && !screenChoice) {
+      toast.error("Selecciona una opción de asistencia con las pantallas.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -281,12 +289,57 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
           "Reserva guardada temporalmente (modo local). Configura Supabase para que quede guardada al reiniciar."
         );
       }
+
+      if (isCaracas && screenChoice === "asistencia") {
+        try {
+          await fetch("/api/notify-assistance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              firstName,
+              lastName,
+              company,
+              roomName: payload?.room_name || roomLabel,
+              date: payload?.date || date,
+              timeRange: payload?.time_range
+            })
+          });
+          toast.success("Solicitud de asistencia enviada.");
+        } catch {
+          toast.error("No se pudo enviar la solicitud de asistencia.");
+        }
+      }
+
       onSuccess?.(payload);
     } catch {
       toast.error("No pudimos reservar. Intenta nuevamente.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const fieldSx = {
+    "& .MuiOutlinedInput-root": {
+      borderRadius: "14px",
+      backgroundColor: mode === "dark" ? "rgba(15,23,42,0.6)" : "#fff",
+      "& fieldset": {
+        borderColor: mode === "dark" ? "rgba(148,163,184,0.35)" : "rgba(148,163,184,0.65)",
+        borderWidth: 2
+      },
+      "&:hover fieldset": { borderColor: "#0E7CFF", borderWidth: 2 },
+      "&.Mui-focused fieldset": { borderColor: "#0E7CFF", borderWidth: 2 }
+    },
+    "& .MuiInputBase-input": {
+      fontSize: "16px",
+      lineHeight: 1.5,
+      padding: "14px 14px !important",
+      color: mode === "dark" ? "#e2e8f0" : "#0f172a"
+    },
+    "& .MuiInputLabel-root": {
+      color: mode === "dark" ? "rgba(226,232,240,0.75)" : "rgba(15,23,42,0.7)",
+      fontWeight: 700
+    },
+    "& .MuiInputLabel-root.Mui-focused": { color: "#0E7CFF" }
   };
 
   return (
@@ -299,14 +352,7 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
           required
           fullWidth
           InputLabelProps={{ shrink: true }}
-          sx={{
-            "& .MuiOutlinedInput-root": { borderRadius: "14px" },
-            "& .MuiInputBase-input": {
-              fontSize: "16px",
-              lineHeight: 1.5,
-              padding: "14px 14px !important"
-            }
-          }}
+          sx={fieldSx}
         />
 
       {isFitur ? (
@@ -316,14 +362,7 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
           onChange={(e) => setClients(e.target.value)}
           fullWidth
           InputLabelProps={{ shrink: true }}
-          sx={{
-            "& .MuiOutlinedInput-root": { borderRadius: "14px" },
-            "& .MuiInputBase-input": {
-              fontSize: "16px",
-              lineHeight: 1.5,
-              padding: "14px 14px !important"
-            }
-          }}
+          sx={fieldSx}
         />
       ) : null}
         <TextField
@@ -333,14 +372,7 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
           required
           fullWidth
           InputLabelProps={{ shrink: true }}
-          sx={{
-            "& .MuiOutlinedInput-root": { borderRadius: "14px" },
-            "& .MuiInputBase-input": {
-              fontSize: "16px",
-              lineHeight: 1.5,
-              padding: "14px 14px !important"
-            }
-          }}
+          sx={fieldSx}
         />
       </div>
 
@@ -352,11 +384,10 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
         required
         fullWidth
         sx={{
-          "& .MuiOutlinedInput-root": { borderRadius: "14px" },
-          "& .MuiInputBase-input": {
-            fontSize: "16px",
-            lineHeight: 1.5,
-            padding: "14px 14px !important"
+          ...fieldSx,
+          "& .MuiOutlinedInput-root": {
+            ...fieldSx["& .MuiOutlinedInput-root"],
+            backgroundColor: mode === "dark" ? "rgba(15,23,42,0.4)" : "rgba(241,245,249,0.7)"
           }
         }}
       />
@@ -369,19 +400,84 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
         required
         fullWidth
         InputLabelProps={{ shrink: true }}
-        sx={{
-          "& .MuiOutlinedInput-root": { borderRadius: "14px" },
-          "& .MuiInputBase-input": {
-            fontSize: "16px",
-            lineHeight: 1.5,
-            padding: "14px 14px !important"
-          }
-        }}
+        sx={fieldSx}
       />
+
+      {isCaracas && (
+        <div
+          className={
+            "rounded-2xl border-2 p-4 " +
+            (mode === "dark"
+              ? "border-blue-800/60 bg-blue-950/20"
+              : "border-blue-200 bg-blue-50/60")
+          }
+        >
+          <div className="flex items-start gap-2 mb-3">
+            <span style={{ fontSize: 22, lineHeight: 1 }}>🖥️</span>
+            <div className="min-w-0">
+              <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                Asistencia con las pantallas <span className="text-rose-600">*</span>
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                Sala Caracas: indica si necesitas asistencia para conectar las pantallas.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setScreenChoice("asistencia")}
+              className={
+                "w-full rounded-xl border-2 px-3 py-3 text-sm font-extrabold text-left transition-all " +
+                (screenChoice === "asistencia"
+                  ? "border-brand bg-brand text-white shadow-md"
+                  : mode === "dark"
+                    ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-brand/60"
+                    : "border-slate-300 bg-white text-slate-800 hover:border-brand/60")
+              }
+            >
+              Sí, necesito asistencia
+              <span className={"block text-[11px] font-semibold mt-0.5 " + (screenChoice === "asistencia" ? "text-white/90" : "text-slate-500 dark:text-slate-400")}>
+                Se notificará al equipo de soporte
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setScreenChoice("instructivo")}
+              className={
+                "w-full rounded-xl border-2 px-3 py-3 text-sm font-extrabold text-left transition-all " +
+                (screenChoice === "instructivo"
+                  ? "border-brand bg-brand text-white shadow-md"
+                  : mode === "dark"
+                    ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-brand/60"
+                    : "border-slate-300 bg-white text-slate-800 hover:border-brand/60")
+              }
+            >
+              No, sé conectarlas
+              <span className={"block text-[11px] font-semibold mt-0.5 " + (screenChoice === "instructivo" ? "text-white/90" : "text-slate-500 dark:text-slate-400")}>
+                Puedes ver el instructivo si lo necesitas
+              </span>
+            </button>
+          </div>
+
+          {screenChoice === "instructivo" && (
+            <a
+              href="https://instructivo.escalatech.net/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mt-3 text-xs font-extrabold text-brand hover:underline"
+            >
+              Ver instructivo de conexión →
+            </a>
+          )}
+        </div>
+      )}
 
       <div
         className={
-          "rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 " +
+          "rounded-2xl border-2 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 " +
           (mode === "dark" ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white")
         }
       >
@@ -404,12 +500,20 @@ function BookingDetailsForm({ roomId, roomLabel, date, times, company, onCompany
           variant="contained"
           disabled={loading}
           sx={{
-            height: 44,
+            height: 48,
+            px: 3,
+            minWidth: 200,
             fontWeight: 900,
             textTransform: "none",
             borderRadius: "14px",
+            fontSize: "0.95rem",
             background: "linear-gradient(135deg, #0E7CFF 0%, #0A56B3 100%)",
-            "&:hover": { background: "linear-gradient(135deg, #0A56B3 0%, #083d85 100%)" }
+            boxShadow: "0 6px 18px rgba(14,124,255,0.35)",
+            "&:hover": {
+              background: "linear-gradient(135deg, #0A56B3 0%, #083d85 100%)",
+              boxShadow: "0 8px 22px rgba(14,124,255,0.45)"
+            },
+            "&:disabled": { background: "rgba(14,124,255,0.45)", color: "#fff" }
           }}
         >
           {loading ? "Reservando..." : "Confirmar reserva"}
@@ -434,6 +538,7 @@ export default function CalendlyHome() {
   const [loadingSlots, setLoadingSlots] = useState(true);
 
   const roomsRequestIdRef = useRef(0);
+  const roomsCacheRef = useRef(new Map());
 
   const [selectedTimes, setSelectedTimes] = useState([]);
   const [confirmed, setConfirmed] = useState(false);
@@ -451,14 +556,24 @@ export default function CalendlyHome() {
 
   const fetchRooms = useCallback(async () => {
     const requestId = ++roomsRequestIdRef.current;
+    const cached = roomsCacheRef.current.get(group);
+    if (cached) {
+      setRooms(cached);
+      const firstId = (cached[0] && (cached[0].id ?? cached[0].name)) || "";
+      setSelectedRoom((prev) => prev || firstId);
+      setLoadingRooms(false);
+      return;
+    }
     setLoadingRooms(true);
     const groupParam = `?group=${encodeURIComponent(group)}`;
     try {
       const res = await fetch(`/api/rooms${groupParam}`);
       const data = await res.json();
       if (requestId !== roomsRequestIdRef.current) return;
-      setRooms(Array.isArray(data) ? data : []);
-      const firstId = (Array.isArray(data) && data[0] && (data[0].id ?? data[0].name)) || "";
+      const roomList = Array.isArray(data) ? data : [];
+      roomsCacheRef.current.set(group, roomList);
+      setRooms(roomList);
+      const firstId = (roomList[0] && (roomList[0].id ?? roomList[0].name)) || "";
       setSelectedRoom((prev) => prev || firstId);
     } catch {
       if (requestId !== roomsRequestIdRef.current) return;
@@ -525,8 +640,7 @@ export default function CalendlyHome() {
         time: (b.time || "").slice(0, 5),
         first_name: b.first_name,
         last_name: b.last_name,
-        company: b.company,
-        cancel_code: b.cancel_code
+        company: b.company
       }))
       .filter((b) => !!b.time)
       .sort((a, b) => a.time.localeCompare(b.time));
@@ -1033,12 +1147,17 @@ export default function CalendlyHome() {
                   onSuccess={(payload) => {
                     const cancelCode = payload?.cancel_code;
                     const cancelUrl = payload?.cancel_url;
+                    const bookedRoomName = payload?.room_name || selectedRoomLabel;
                     setBookingData({
                       cancelCode,
                       cancelUrl,
-                      roomName: payload?.room_name || selectedRoomLabel,
+                      roomName: bookedRoomName,
                       timeRange: payload?.time_range,
-                      date: payload?.date || selectedDate
+                      date: payload?.date || selectedDate,
+                      firstName: payload?.first_name || "",
+                      lastName: payload?.last_name || "",
+                      company: payload?.company || "",
+                      isCaracas: bookedRoomName === "Sala Caracas"
                     });
                     if (cancelCode) {
                       setShowCodeModal(true);
@@ -1065,6 +1184,10 @@ export default function CalendlyHome() {
             roomName={bookingData.roomName}
             timeRange={bookingData.timeRange}
             date={bookingData.date}
+            isCaracas={bookingData.isCaracas}
+            firstName={bookingData.firstName}
+            lastName={bookingData.lastName}
+            company={bookingData.company}
           />
         )}
 
