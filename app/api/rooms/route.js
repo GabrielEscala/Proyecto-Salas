@@ -46,19 +46,19 @@ const filterRoomsByGroup = (rooms, group) => {
   return base.filter((r) => !MALLORCA_NAMES.has(r?.name));
 };
 
+const CACHE_HEADERS = { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" };
+const cacheJson = (data) => NextResponse.json(data, { status: 200, headers: CACHE_HEADERS });
+
 export async function GET(request) {
   const group = getRequestedGroup(request);
 
   if (!supabase) {
-    if (ENABLE_FITUR && group === "fitur") return NextResponse.json(FITUR_ROOM_SEED, { status: 200 });
-    if (group === "mallorca") return NextResponse.json(MALLORCA_ROOM_SEED, { status: 200 });
+    if (ENABLE_FITUR && group === "fitur") return cacheJson(FITUR_ROOM_SEED);
+    if (group === "mallorca") return cacheJson(MALLORCA_ROOM_SEED);
     if (group === "all") {
-      return NextResponse.json(
-        [...ROOM_SEED, ...MALLORCA_ROOM_SEED, ...(ENABLE_FITUR ? FITUR_ROOM_SEED : [])],
-        { status: 200 }
-      );
+      return cacheJson([...ROOM_SEED, ...MALLORCA_ROOM_SEED, ...(ENABLE_FITUR ? FITUR_ROOM_SEED : [])]);
     }
-    return NextResponse.json(ROOM_SEED, { status: 200 });
+    return cacheJson(ROOM_SEED);
   }
 
   try {
@@ -147,20 +147,13 @@ export async function GET(request) {
     const supabaseRooms = (data || []).length ? data : ROOM_SEED;
     const filtered = filterRoomsByGroup(supabaseRooms, group);
     if (ENABLE_FITUR && group === "fitur" && filtered.length === 0) {
-      return NextResponse.json(FITUR_ROOM_SEED, { status: 200 });
+      return cacheJson(FITUR_ROOM_SEED);
     }
     if (group === "mallorca" && filtered.length === 0) {
-      return NextResponse.json(MALLORCA_ROOM_SEED, { status: 200 });
-    }
-    if (ENABLE_FITUR && group === "all") {
-      return NextResponse.json(filtered, { status: 200 });
+      return cacheJson(MALLORCA_ROOM_SEED);
     }
 
-    if (group === "all") {
-      return NextResponse.json(filtered, { status: 200 });
-    }
-
-    return NextResponse.json(filtered, { status: 200 });
+    return cacheJson(filtered);
   } catch (error) {
     if (ENABLE_FITUR && group === "fitur") return NextResponse.json(FITUR_ROOM_SEED, { status: 200 });
     if (group === "mallorca") return NextResponse.json(MALLORCA_ROOM_SEED, { status: 200 });
