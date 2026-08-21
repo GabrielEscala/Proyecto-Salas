@@ -39,6 +39,9 @@ import { generateTimeSlots, getTodayString, isSlotInPast, formatTime12h } from "
 import { isValidCancelCode } from "@/lib/codes";
 import ThemeToggle from "@/components/theme-toggle";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CheckIcon from "@mui/icons-material/Check";
+import { IconButton, Tooltip } from "@mui/material";
 import { useTheme } from "@/lib/theme-context";
 import { ENABLE_FITUR, FITUR_ROOM_SEED, MALLORCA_ROOM_SEED } from "@/lib/constants";
 
@@ -222,6 +225,8 @@ export default function ManageBookingPage() {
 
   const [availabilityBookings, setAvailabilityBookings] = useState([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [cancellingSlot, setCancellingSlot] = useState("");
 
   useEffect(() => {
     if (!code || !isValidCancelCode(code)) {
@@ -382,6 +387,40 @@ export default function ManageBookingPage() {
     }
   };
 
+  const handleCancelSlot = async (slotTime) => {
+    setCancellingSlot(slotTime);
+    try {
+      const response = await fetch("/api/bookings/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancelCode: code, times: [slotTime] })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(data?.error || "No se pudo cancelar el bloque.");
+        return;
+      }
+      toast.success("Bloque cancelado.");
+      await loadBooking();
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al cancelar el bloque.");
+    } finally {
+      setCancellingSlot("");
+    }
+  };
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(String(code || ""));
+      setCopied(true);
+      toast.success("Código copiado");
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error("No se pudo copiar el código.");
+    }
+  };
+
   const handleSaveEdit = async () => {
     if (!selectedRoom || !selectedDate || selectedSlots.length === 0) {
       toast.error("Completa todos los campos");
@@ -463,14 +502,28 @@ export default function ManageBookingPage() {
     firstBooking.room_name ||
     rooms.find((r) => (r?.id ?? r?.name) === firstBooking.room_id)?.name ||
     "—";
-  const startTime = booking[0].time?.slice(0, 5) || "";
-  const endTime = booking[booking.length - 1].time?.slice(0, 5) || "";
-  const timeRange = booking.length > 1
+  const bookingSlotsSorted = [...booking]
+    .map((b) => ({ ...b, _t: (b.time || "").slice(0, 5) }))
+    .filter((b) => !!b._t)
+    .sort((a, b) => a._t.localeCompare(b._t));
+  const startTime = bookingSlotsSorted[0]?._t || "";
+  const endTime = bookingSlotsSorted[bookingSlotsSorted.length - 1]?._t || "";
+  const timeRange = bookingSlotsSorted.length > 1
     ? `${formatTime12h(startTime)} - ${formatTime12h(endTime)}`
     : formatTime12h(startTime);
+  const isSlotPast = (b) => {
+    const d = b.date;
+    const t = b._t;
+    if (!d || !t) return false;
+    if (d < todayString) return true;
+    if (d === todayString && isSlotInPast(d, t, new Date(), timeZone)) return true;
+    return false;
+  };
+  const futureSlotCount = bookingSlotsSorted.filter((b) => !isSlotPast(b)).length;
 
   const bookingCompany = firstBooking.company || "";
   const bookingClients = firstBooking.clients || "";
+  const bookingEmail = firstBooking.email || "";
   const isMahCompany = String(bookingCompany).trim().toLowerCase() === "mah";
 
   const availabilitySlotStates = (() => {
@@ -551,18 +604,34 @@ export default function ManageBookingPage() {
                   }}
                 />
               ) : null}
-              <Chip
-                label={`Código: ${code}`}
-                color="primary"
-                className="font-mono font-semibold"
-                sx={{
-                  fontSize: "0.875rem",
-                  height: "32px",
-                  backgroundColor: "rgba(14, 124, 255, 0.1)",
-                  color: "#0E7CFF",
-                  border: "1px solid rgba(14, 124, 255, 0.3)"
-                }}
-              />
+              <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                <Chip
+                  label={`Código: ${code}`}
+                  color="primary"
+                  className="font-mono font-semibold"
+                  sx={{
+                    fontSize: "0.875rem",
+                    height: "32px",
+                    backgroundColor: "rgba(14, 124, 255, 0.1)",
+                    color: "#0E7CFF",
+                    border: "1px solid rgba(14, 124, 255, 0.3)"
+                  }}
+                />
+                <Tooltip title={copied ? "Copiado" : "Copiar código"}>
+                  <IconButton
+                    size="small"
+                    onClick={copyCode}
+                    aria-label="Copiar código"
+                    sx={{
+                      color: copied ? "#16a34a" : "#0E7CFF",
+                      backgroundColor: mode === "dark" ? "rgba(14,124,255,0.10)" : "rgba(14,124,255,0.06)",
+                      "&:hover": { backgroundColor: mode === "dark" ? "rgba(14,124,255,0.20)" : "rgba(14,124,255,0.12)" }
+                    }}
+                  >
+                    {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
 
             {/* Información de la reserva */}
@@ -623,15 +692,69 @@ export default function ManageBookingPage() {
                       {firstBooking.date}
                     </Typography>
                   </Box>
-                  <Box>
+                  {bookingEmail ? (
+                    <Box>
+                      <Typography variant="caption" className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Correo
+                      </Typography>
+                      <Typography className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100 break-all" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" }}>
+                        {bookingEmail}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                </div>
+
+                <Box sx={{ mt: 3 }}>
+                  <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
                     <Typography variant="caption" className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Horario
+                      Bloques ({bookingSlotsSorted.length}) · {timeRange}
                     </Typography>
-                    <Typography className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
-                      {timeRange}
+                    <Typography variant="caption" className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      {futureSlotCount} activos · {bookingSlotsSorted.length - futureSlotCount} pasados
                     </Typography>
                   </Box>
-                </div>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1.5 }}>
+                    {bookingSlotsSorted.map((b) => {
+                      const past = isSlotPast(b);
+                      const isCancelling = cancellingSlot === b._t;
+                      const label = past
+                        ? `${formatTime12h(b._t)} · Pasado`
+                        : formatTime12h(b._t);
+                      return (
+                        <Chip
+                          key={b._t}
+                          label={label}
+                          onDelete={past || bookingSlotsSorted.length === 1 ? undefined : () => handleCancelSlot(b._t)}
+                          disabled={isCancelling}
+                          size="medium"
+                          sx={{
+                            fontWeight: 900,
+                            borderRadius: "999px",
+                            height: 32,
+                            px: 0.5,
+                            backgroundColor: past
+                              ? (mode === "dark" ? "rgba(148,163,184,0.15)" : "rgba(148,163,184,0.20)")
+                              : (mode === "dark" ? "rgba(14, 124, 255, 0.14)" : "rgba(14, 124, 255, 0.10)"),
+                            color: past
+                              ? (mode === "dark" ? "rgba(226,232,240,0.55)" : "rgba(51,65,85,0.65)")
+                              : (mode === "dark" ? "#93c5fd" : "#0A56B3"),
+                            border: `1px solid ${past ? "rgba(148,163,184,0.30)" : "rgba(14, 124, 255, 0.30)"}`,
+                            textDecoration: past ? "line-through" : "none",
+                            "& .MuiChip-deleteIcon": {
+                              color: mode === "dark" ? "rgba(239, 68, 68, 0.85)" : "#dc2626",
+                              "&:hover": { color: "#ef4444" }
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </Box>
+                  {bookingSlotsSorted.length > 1 && futureSlotCount > 0 ? (
+                    <Typography variant="caption" sx={{ display: "block", mt: 1.5, color: mode === "dark" ? "rgba(226,232,240,0.55)" : "rgba(51,65,85,0.65)" }}>
+                      Toca la × en un bloque para cancelarlo individualmente.
+                    </Typography>
+                  ) : null}
+                </Box>
               </CardContent>
             </Card>
 
@@ -655,7 +778,7 @@ export default function ManageBookingPage() {
                   >
                     <CardContent className="p-5">
                       <Typography variant="subtitle1" className="mb-4 font-extrabold text-slate-900 dark:text-slate-100">
-                        Sala
+                        1. Sala
                       </Typography>
                       <div className="space-y-3">
                         <div
@@ -797,7 +920,7 @@ export default function ManageBookingPage() {
                   >
                     <CardContent className="p-5">
                       <Typography variant="subtitle1" className="mb-4 font-extrabold text-slate-900 dark:text-slate-100">
-                        Fecha
+                        2. Fecha
                       </Typography>
                       <ManageCalendar
                         value={selectedDate}
@@ -824,7 +947,7 @@ export default function ManageBookingPage() {
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div>
                           <Typography variant="subtitle1" className="font-extrabold text-slate-900 dark:text-slate-100">
-                            Horarios
+                            3. Horarios
                           </Typography>
                           <Typography variant="caption" className="text-slate-600 dark:text-slate-300 font-semibold">
                             Seleccionados: {selectedSlots.length}
@@ -989,6 +1112,7 @@ export default function ManageBookingPage() {
                     setEditMode(true);
                     loadAvailability(selectedRoom, selectedDate);
                   }}
+                  disabled={futureSlotCount === 0}
                   size="large"
                   className="font-semibold min-w-[160px]"
                   sx={{
@@ -1000,22 +1124,27 @@ export default function ManageBookingPage() {
                 >
                   Editar Reserva
                 </Button>
-                <Button
-                  variant="outlined"
-                  color="error"
-                  onClick={() => setCancelDialog(true)}
-                  size="large"
-                  className="dark:border-red-600 dark:text-red-400 min-w-[160px]"
-                  sx={{
-                    borderWidth: 2,
-                    "&:hover": {
-                      borderWidth: 2,
-                      backgroundColor: "rgba(239, 68, 68, 0.1)"
-                    }
-                  }}
-                >
-                  Cancelar Reserva
-                </Button>
+                <Tooltip title={futureSlotCount === 0 ? "Todos los bloques ya pasaron" : ""}>
+                  <span>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={() => setCancelDialog(true)}
+                      disabled={futureSlotCount === 0}
+                      size="large"
+                      className="dark:border-red-600 dark:text-red-400 min-w-[160px]"
+                      sx={{
+                        borderWidth: 2,
+                        "&:hover": {
+                          borderWidth: 2,
+                          backgroundColor: "rgba(239, 68, 68, 0.1)"
+                        }
+                      }}
+                    >
+                      Cancelar reserva completa
+                    </Button>
+                  </span>
+                </Tooltip>
               </Stack>
             )}
           </div>
