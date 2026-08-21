@@ -305,10 +305,11 @@ export async function GET(request) {
   const date = searchParams.get("date");
   const roomId = searchParams.get("roomId");
   const cancelCode = searchParams.get("cancelCode");
+  const isAdmin = request.cookies?.get?.("salas_admin")?.value === "1";
 
   if (!supabase) {
     const memBookings = getMemoryBookings({ date, roomId, cancelCode });
-    return NextResponse.json(cancelCode ? memBookings : memBookings.map(sanitizeForPublic), {
+    return NextResponse.json(cancelCode || isAdmin ? memBookings : memBookings.map(sanitizeForPublic), {
       headers: {
         "x-salas-storage": "memory",
         "x-salas-storage-reason": "supabase_not_configured"
@@ -369,7 +370,7 @@ export async function GET(request) {
       );
     }
 
-    const cacheKey = `${date}|${roomId || ""}`;
+    const cacheKey = `${date}|${roomId || ""}|${isAdmin ? "admin" : "public"}`;
     const cached = BOOKINGS_CACHE.get(cacheKey);
     const now = Date.now();
     if (cached && cached.expiresAt > now) {
@@ -429,14 +430,14 @@ export async function GET(request) {
     }
 
     const result = Array.from(byKey.values()).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
-    const publicResult = result.map(sanitizeForPublic);
+    const finalResult = isAdmin ? result : result.map(sanitizeForPublic);
 
     BOOKINGS_CACHE.set(cacheKey, {
       expiresAt: now + BOOKINGS_CACHE_TTL_MS,
-      payload: publicResult
+      payload: finalResult
     });
 
-    return NextResponse.json(publicResult, {
+    return NextResponse.json(finalResult, {
       headers: {
         "x-salas-storage": "supabase",
         "x-salas-cache": "miss"
