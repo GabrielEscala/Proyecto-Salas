@@ -73,6 +73,7 @@ export default function AdminDashboard() {
           first_name: b?.first_name || "",
           last_name: b?.last_name || "",
           company: b?.company || "",
+          email: b?.email || "",
           times: []
         });
       }
@@ -94,7 +95,8 @@ export default function AdminDashboard() {
       const room = String(b.room_name || "").toLowerCase();
       const company = String(b.company || "").toLowerCase();
       const code = String(b.cancel_code || "").toLowerCase();
-      return code.includes(q) || name.includes(q) || room.includes(q) || company.includes(q);
+      const email = String(b.email || "").toLowerCase();
+      return code.includes(q) || name.includes(q) || room.includes(q) || company.includes(q) || email.includes(q);
     });
   }, [blocks, query]);
 
@@ -270,7 +272,7 @@ export default function AdminDashboard() {
               label="Buscar"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Código, sala, nombre, empresa..."
+              placeholder="Código, sala, nombre, empresa, correo..."
               sx={{ minWidth: { xs: 260, md: 360 } }}
               InputProps={{
                 startAdornment: (
@@ -330,6 +332,7 @@ export default function AdminDashboard() {
                 <TableCell sx={{ fontWeight: 900, py: 1.5 }}>Código</TableCell>
                 <TableCell sx={{ fontWeight: 900, py: 1.5 }}>Sala</TableCell>
                 <TableCell sx={{ fontWeight: 900, py: 1.5 }}>Nombre</TableCell>
+                <TableCell sx={{ fontWeight: 900, py: 1.5 }}>Correo</TableCell>
                 <TableCell sx={{ fontWeight: 900, py: 1.5 }}>Empresa</TableCell>
                 <TableCell sx={{ fontWeight: 900, py: 1.5 }}>Horas</TableCell>
                 <TableCell sx={{ fontWeight: 900, py: 1.5, width: 190 }}>Acciones</TableCell>
@@ -350,6 +353,7 @@ export default function AdminDashboard() {
                     </TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>{b.room_name}</TableCell>
                     <TableCell>{`${b.first_name || ""} ${b.last_name || ""}`.trim() || "—"}</TableCell>
+                    <TableCell sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: "0.85rem" }}>{b.email || "—"}</TableCell>
                     <TableCell>{b.company || "—"}</TableCell>
                     <TableCell>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
@@ -392,7 +396,7 @@ export default function AdminDashboard() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} sx={{ py: 4, textAlign: "center", color: mode === "dark" ? "rgba(226,232,240,0.65)" : "rgba(51,65,85,0.65)" }}>
+                  <TableCell colSpan={7} sx={{ py: 4, textAlign: "center", color: mode === "dark" ? "rgba(226,232,240,0.65)" : "rgba(51,65,85,0.65)" }}>
                     No hay reservas para esta fecha.
                   </TableCell>
                 </TableRow>
