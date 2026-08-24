@@ -37,7 +37,7 @@ const resolveTimeZoneForRoomId = async (roomId) => {
   }
 };
 
-const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) => {
+const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time, times }) => {
   let bookings = [];
   if (cancelCode) {
     bookings = MEMORY_BOOKINGS.filter((b) => b.cancel_code === cancelCode);
@@ -59,32 +59,44 @@ const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) =>
     );
   }
 
+  bookings.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+
   const firstBooking = bookings[0];
-  const bookingDate = firstBooking.date;
-  const bookingTime = normalizeTime(firstBooking.time);
   const timeZone = (String(firstBooking.room_id || "").startsWith("fitur:") || String(firstBooking.room_id || "").startsWith("mallorca:"))
     ? FITUR_TIME_ZONE
     : DEFAULT_TIME_ZONE;
+  const now = new Date();
 
-  if (isDateBeforeToday(bookingDate, new Date(), timeZone)) {
+  const partialSet = Array.isArray(times) && times.length
+    ? new Set(times.map((t) => (t?.length === 5 ? t : normalizeTime(t))))
+    : null;
+
+  const isFuture = (b) => {
+    const d = b.date;
+    const t = normalizeTime(b.time);
+    if (isDateBeforeToday(d, now, timeZone)) return false;
+    const todayString = getTodayString(now, timeZone);
+    if (d === todayString && isSlotInPast(d, t, now, timeZone)) return false;
+    return true;
+  };
+
+  const candidates = partialSet
+    ? bookings.filter((b) => partialSet.has(normalizeTime(b.time)))
+    : bookings;
+
+  const cancellable = candidates.filter(isFuture);
+
+  if (!cancellable.length) {
     return NextResponse.json(
-      { error: "No puedes cancelar reservas pasadas." },
+      { error: "No hay bloques futuros para cancelar." },
       { status: 422 }
     );
   }
 
-  const todayString = getTodayString(new Date(), timeZone);
-  if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime, new Date(), timeZone)) {
-    return NextResponse.json(
-      { error: "No puedes cancelar una reserva que ya pasó." },
-      { status: 422 }
-    );
-  }
-
-  const cancelCodeToDelete = firstBooking.cancel_code;
+  const idsToDelete = new Set(cancellable.map((b) => b.id));
   const before = MEMORY_BOOKINGS.length;
   for (let i = MEMORY_BOOKINGS.length - 1; i >= 0; i--) {
-    if (MEMORY_BOOKINGS[i].cancel_code === cancelCodeToDelete) {
+    if (idsToDelete.has(MEMORY_BOOKINGS[i].id)) {
       MEMORY_BOOKINGS.splice(i, 1);
     }
   }
@@ -93,8 +105,9 @@ const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) =>
   return NextResponse.json(
     {
       success: true,
-      message: "Reserva cancelada exitosamente.",
+      message: partialSet ? "Bloques cancelados exitosamente." : "Reserva cancelada exitosamente.",
       cancelled_bookings: deleted,
+      partial: !!partialSet,
       storage: "memory"
     },
     { status: 200 }
@@ -103,7 +116,7 @@ const cancelMemoryBooking = ({ cancelCode, firstName, lastName, date, time }) =>
 
 export async function POST(request) {
   const body = await request.json();
-  const { cancelCode, firstName, lastName, date, time } = body;
+  const { cancelCode, firstName, lastName, date, time, times } = body;
 
   // Validar que se proporcione código o datos de verificación
   if (!cancelCode && (!firstName || !lastName || !date || !time)) {
@@ -114,7 +127,7 @@ export async function POST(request) {
   }
 
   if (!supabase) {
-    return cancelMemoryBooking({ cancelCode, firstName, lastName, date, time });
+    return cancelMemoryBooking({ cancelCode, firstName, lastName, date, time, times });
   }
 
   let query = supabase.from("bookings").select("*");
@@ -147,36 +160,46 @@ export async function POST(request) {
   }
 
   if (!bookings || bookings.length === 0) {
-    return cancelMemoryBooking({ cancelCode, firstName, lastName, date, time });
+    return cancelMemoryBooking({ cancelCode, firstName, lastName, date, time, times });
   }
 
-  // Verificar que la reserva no haya pasado
+  bookings.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+
   const firstBooking = bookings[0];
-  const bookingDate = firstBooking.date;
-  const bookingTime = firstBooking.time?.slice(0, 5);
   const timeZone = await resolveTimeZoneForRoomId(firstBooking.room_id);
+  const now = new Date();
 
-  if (isDateBeforeToday(bookingDate, new Date(), timeZone)) {
+  const partialSet = Array.isArray(times) && times.length
+    ? new Set(times.map((t) => (t?.length === 5 ? t : normalizeTime(t))))
+    : null;
+
+  const isFuture = (b) => {
+    const d = b.date;
+    const t = normalizeTime(b.time);
+    if (isDateBeforeToday(d, now, timeZone)) return false;
+    const todayString = getTodayString(now, timeZone);
+    if (d === todayString && isSlotInPast(d, t, now, timeZone)) return false;
+    return true;
+  };
+
+  const candidates = partialSet
+    ? bookings.filter((b) => partialSet.has(normalizeTime(b.time)))
+    : bookings;
+
+  const cancellable = candidates.filter(isFuture);
+
+  if (!cancellable.length) {
     return NextResponse.json(
-      { error: "No puedes cancelar reservas pasadas." },
+      { error: "No hay bloques futuros para cancelar." },
       { status: 422 }
     );
   }
 
-  const todayString = getTodayString(new Date(), timeZone);
-  if (bookingDate === todayString && isSlotInPast(bookingDate, bookingTime, new Date(), timeZone)) {
-    return NextResponse.json(
-      { error: "No puedes cancelar una reserva que ya pasó." },
-      { status: 422 }
-    );
-  }
-
-  // Eliminar todas las reservas del grupo (mismo cancel_code)
-  const cancelCodeToDelete = firstBooking.cancel_code;
+  const idsToDelete = cancellable.map((b) => b.id);
   const { error: deleteError } = await supabase
     .from("bookings")
     .delete()
-    .eq("cancel_code", cancelCodeToDelete);
+    .in("id", idsToDelete);
 
   if (deleteError) {
     console.error(deleteError);
@@ -186,18 +209,17 @@ export async function POST(request) {
     );
   }
 
-  // También eliminar invitados asociados
-  const bookingIds = bookings.map(b => b.id);
   await supabase
     .from("booking_guests")
     .delete()
-    .in("booking_id", bookingIds);
+    .in("booking_id", idsToDelete);
 
   return NextResponse.json(
     {
       success: true,
-      message: "Reserva cancelada exitosamente.",
-      cancelled_bookings: bookings.length,
+      message: partialSet ? "Bloques cancelados exitosamente." : "Reserva cancelada exitosamente.",
+      cancelled_bookings: cancellable.length,
+      partial: !!partialSet,
       storage: "supabase"
     },
     { status: 200 }

@@ -332,7 +332,6 @@ function BookingForm({
                   }}
                 >
                   <MenuItem value="Grupo Escala">Grupo Escala</MenuItem>
-                  <MenuItem value="Mah">Mah</MenuItem>
                   <MenuItem value="Levruno">Levruno</MenuItem>
                 </Select>
               </FormControl>
