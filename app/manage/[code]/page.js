@@ -521,10 +521,8 @@ export default function ManageBookingPage() {
   };
   const futureSlotCount = bookingSlotsSorted.filter((b) => !isSlotPast(b)).length;
 
-  const bookingCompany = firstBooking.company || "";
   const bookingClients = firstBooking.clients || "";
   const bookingEmail = firstBooking.email || "";
-  const isMahCompany = String(bookingCompany).trim().toLowerCase() === "mah";
 
   const availabilitySlotStates = (() => {
     const bookingTimes = new Map(
@@ -549,8 +547,8 @@ export default function ManageBookingPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <img
-              src={isMahCompany ? "/logo-heart.svg" : "/logo-salas.svg"}
-              alt={isMahCompany ? "MAH" : "SALAS"}
+              src="/logo-salas.svg"
+              alt="SALAS"
               className="h-9 w-auto"
               style={{
                 height: 36,

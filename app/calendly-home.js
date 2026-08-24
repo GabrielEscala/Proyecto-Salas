@@ -50,8 +50,7 @@ const slots = generateTimeSlots();
 function CompanyCarousel({ value, onChange, mode }) {
   const companies = [
     { id: "Escalabeds", label: "Escalabeds" },
-    { id: "Levruno", label: "Levruno" },
-    { id: "Mah", label: "Mah" }
+    { id: "Levruno", label: "Levruno" }
   ];
 
   return (
@@ -678,24 +677,17 @@ export default function CalendlyHome() {
       <Container maxWidth="lg" className="px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            {(() => {
-              const isMah = String(company || "").trim().toLowerCase() === "mah";
-              const logoSrc = isMah ? "/logo-heart.svg" : "/logo-salas.svg";
-              const logoAlt = isMah ? "MAH" : "SALAS";
-              return (
-                <img
-                  src={logoSrc}
-                  alt={logoAlt}
-                  className="h-9 w-auto"
-                  style={{
-                    height: 36,
-                    width: "auto",
-                    maxHeight: 36,
-                    filter: mode === "dark" ? "brightness(1.1)" : "none"
-                  }}
-                />
-              );
-            })()}
+            <img
+              src="/logo-salas.svg"
+              alt="SALAS"
+              className="h-9 w-auto"
+              style={{
+                height: 36,
+                width: "auto",
+                maxHeight: 36,
+                filter: mode === "dark" ? "brightness(1.1)" : "none"
+              }}
+            />
           </div>
           <Button
             variant="outlined"
