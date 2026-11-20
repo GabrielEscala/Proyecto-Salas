@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabaseClient";
-import { FITUR_ROOM_SEED, MALLORCA_ROOM_SEED } from "@/lib/constants";
+import { FITUR_ROOM_SEED, MALLORCA_ROOM_SEED, NEW_BOOKING_URL } from "@/lib/constants";
 import { composeBookingNotes, parseBookingNotes } from "@/lib/booking-notes";
 import {
   generateTimeSlots,
@@ -34,6 +34,9 @@ const FITUR_NAMES = new Set(
 );
 const MALLORCA_NAMES = new Set(MALLORCA_ROOM_SEED.map((r) => r.name));
 const IS_VERCEL = !!process.env.VERCEL || !!process.env.VERCEL_URL;
+const ALLOW_NEW_BOOKINGS = ["true", "1", "yes", "on"].includes(
+  String(process.env.SALAS_ALLOW_NEW_BOOKINGS || "").toLowerCase()
+);
 
 const resolveSupabaseRoomId = async (roomId) => {
   const key = String(roomId || "");
@@ -469,6 +472,16 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    if (!ALLOW_NEW_BOOKINGS) {
+      return NextResponse.json(
+        {
+          error: `Las nuevas reservas ahora se crean desde la intranet: ${NEW_BOOKING_URL}`,
+          booking_url: NEW_BOOKING_URL
+        },
+        { status: 403 }
+      );
+    }
+
     if (!supabase) {
       const body = await request.json();
       return await createMemoryBookingResponse({ ...body, storageReason: "supabase_not_configured" });

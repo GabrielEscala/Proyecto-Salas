@@ -36,6 +36,7 @@ import dynamic from "next/dynamic";
 import { generateTimeSlots, formatTime12h, getTodayString, isSlotInPast } from "@/lib/time";
 import { useTheme } from "@/lib/theme-context";
 import { ENABLE_FITUR } from "@/lib/constants";
+import BookingsMovedModal from "@/components/bookings-moved-modal";
 
 const ManageBookingDialog = dynamic(() => import("@/components/manage-booking-dialog"), {
   ssr: false
@@ -545,6 +546,7 @@ export default function CalendlyHome() {
   const [company, setCompany] = useState("Escalabeds");
 
   const [showManageDialog, setShowManageDialog] = useState(false);
+  const [showBookingsMoved, setShowBookingsMoved] = useState(true);
 
   const [bookingData, setBookingData] = useState(null);
   const [showCodeModal, setShowCodeModal] = useState(false);
@@ -652,15 +654,6 @@ export default function CalendlyHome() {
       const el = document.getElementById("section-form");
       el?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-  };
-
-  const toggleTime = (time) => {
-    setSelectedTimes((prev) => {
-      const exists = prev.includes(time);
-      const next = exists ? prev.filter((t) => t !== time) : [...prev, time];
-      return next.sort((a, b) => a.localeCompare(b));
-    });
-    setConfirmed(false);
   };
 
   const selectedRangeLabel = useMemo(() => {
@@ -1017,7 +1010,7 @@ export default function CalendlyHome() {
                           disabled={!isAvailable}
                           onClick={() => {
                             if (!isAvailable) return;
-                            toggleTime(slot.time);
+                            setShowBookingsMoved(true);
                           }}
                           sx={{
                             flex: 1,
@@ -1182,6 +1175,8 @@ export default function CalendlyHome() {
             company={bookingData.company}
           />
         )}
+
+        <BookingsMovedModal open={showBookingsMoved} onClose={() => setShowBookingsMoved(false)} />
 
         <ManageBookingDialog open={showManageDialog} onClose={() => setShowManageDialog(false)} />
 
